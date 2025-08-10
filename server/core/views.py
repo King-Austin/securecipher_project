@@ -237,6 +237,7 @@ class ValidateAccountView(APIView):
 
 # Utility function for encrypted + signed responses
 def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
+    
     print(f"DEBUG: [encrypted_response] session_key={session_key}, payload={payload}")
     try:
         # Convert Django ErrorDetail objects to standard format for consistent JSON serialization
