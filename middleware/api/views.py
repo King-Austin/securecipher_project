@@ -4,6 +4,7 @@ import json
 import hashlib
 import traceback
 import time
+import logging
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -23,6 +24,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+
+# Security logger
+security_logger = logging.getLogger('securecipher.security')
 
 
 def get_or_create_active_key():
@@ -83,37 +87,74 @@ def get_public_key(request):
 def secure_gateway(request):
     print("DEBUG: [STEP 0] SecureCipher gateway called")
     session_key = None
+    
+    # Rate limiting check (basic)
+    client_ip = request.META.get('REMOTE_ADDR', 'unknown')
+    print(f"DEBUG: [STEP 0] Request from IP: {client_ip}")
+    
     try:
         # --- Step 1: Parse and validate outer envelope ---
         print("DEBUG: [STEP 1] Parsing and validating outer envelope...")
         encrypted_payload = request.data
-        print(f"DEBUG: [STEP 1] Incoming payload: {encrypted_payload}")
+        
+        # Input validation
+        if not isinstance(encrypted_payload, dict):
+            raise ValueError("Invalid payload format: must be JSON object")
+            
+        print(f"DEBUG: [STEP 1] Incoming payload keys: {list(encrypted_payload.keys())}")
         client_ephemeral_pub_b64 = encrypted_payload.get("ephemeral_pubkey")
         ciphertext_b64 = encrypted_payload.get("ciphertext")
         iv_b64 = encrypted_payload.get("iv")
+        
+        # Validate required fields
         if not (client_ephemeral_pub_b64 and ciphertext_b64 and iv_b64):
             print("DEBUG: [STEP 1] Missing required envelope fields.")
             raise ValueError("Missing required envelope fields.")
+            
+        # Validate base64 format and lengths
+        try:
+            ephemeral_der = base64.b64decode(client_ephemeral_pub_b64)
+            ciphertext = base64.b64decode(ciphertext_b64)
+            iv = base64.b64decode(iv_b64)
+            
+            # Validate lengths
+            if len(iv) != 12:  # AES-GCM IV should be 12 bytes
+                raise ValueError("Invalid IV length")
+            if len(ephemeral_der) < 50 or len(ephemeral_der) > 200:  # Reasonable bounds for P-384
+                raise ValueError("Invalid ephemeral key length")
+                
+        except Exception as e:
+            print(f"DEBUG: [STEP 1] Base64 decode error: {e}")
+            raise ValueError("Invalid base64 encoding in payload")
 
         # --- Step 2: Derive session key using ECDH ---
         print("DEBUG: [STEP 2] Deriving session key using ECDH...")
-        middleware_key = get_or_create_active_key()
-        print(f"DEBUG: [STEP 2] Middleware key loaded: {middleware_key}")
-        middleware_private_key = serialization.load_pem_private_key(
-            middleware_key.private_key_pem.encode(), password=None
-        )
-        client_ephemeral_pub_der = base64.b64decode(client_ephemeral_pub_b64)
-        print(f"DEBUG: [STEP 2] Client ephemeral pubkey DER: {client_ephemeral_pub_der.hex()}")
-        client_ephemeral_pub = serialization.load_der_public_key(client_ephemeral_pub_der)
-        shared_key = middleware_private_key.exchange(ec.ECDH(), client_ephemeral_pub)
-        print(f"DEBUG: [STEP 2] Shared key: {shared_key.hex()}")
-        session_key = HKDF(
-            algorithm=hashes.SHA384(),
-            length=32,
-            salt=b'',
-            info=b'secure-cipher-session-key'
-        ).derive(shared_key)
-        print(f"DEBUG: [STEP 2] Session key derived: {session_key.hex()}")
+        try:
+            middleware_key = get_or_create_active_key()
+            print(f"DEBUG: [STEP 2] Middleware key loaded: {middleware_key}")
+            middleware_private_key = serialization.load_pem_private_key(
+                middleware_key.private_key_pem.encode(), password=None
+            )
+            client_ephemeral_pub_der = base64.b64decode(client_ephemeral_pub_b64)
+            print(f"DEBUG: [STEP 2] Client ephemeral pubkey DER: {client_ephemeral_pub_der.hex()}")
+            client_ephemeral_pub = serialization.load_der_public_key(client_ephemeral_pub_der)
+            
+            # Validate that it's the correct curve
+            if not isinstance(client_ephemeral_pub.curve, ec.SECP384R1):
+                raise ValueError("Invalid elliptic curve. Expected SECP384R1.")
+                
+            shared_key = middleware_private_key.exchange(ec.ECDH(), client_ephemeral_pub)
+            print(f"DEBUG: [STEP 2] Shared key: {shared_key.hex()}")
+            session_key = HKDF(
+                algorithm=hashes.SHA384(),
+                length=32,
+                salt=b'',
+                info=b'secure-cipher-session-key'
+            ).derive(shared_key)
+            print(f"DEBUG: [STEP 2] Session key derived: {session_key.hex()}")
+        except Exception as e:
+            print(f"DEBUG: [STEP 2] ECDH derivation failed: {e}")
+            raise ValueError(f"Key exchange failed: {str(e)}")
 
         # --- Step 3: Decrypt AES-GCM payload ---
         print("DEBUG: [STEP 3] Decrypting AES-GCM payload...")
@@ -133,14 +174,27 @@ def secure_gateway(request):
         client_signature = inner_payload.get("client_signature")
         client_public_key_b64 = inner_payload.get("client_public_key")
         nonce = inner_payload.get("nonce")
-        print(f"DEBUG: [STEP 4] target_url: {target_url}, nonce: {nonce}")
+        timestamp = inner_payload.get("timestamp")
+        print(f"DEBUG: [STEP 4] target_url: {target_url}, nonce: {nonce}, timestamp: {timestamp}")
 
+        # Enhanced nonce validation
         if not nonce:
             print("DEBUG: [STEP 4] Nonce is missing!")
             raise ValueError("Nonce is required.")
-        if UsedNonce.objects.filter(nonce=nonce).exists():
-            print("DEBUG: [STEP 4] Replay attack detected: nonce already used.")
-            raise ValueError("Replay attack detected: nonce already used.")
+            
+        # Validate timestamp if present (5-minute window)
+        if timestamp:
+            current_time = int(time.time())
+            if abs(current_time - timestamp) > 300:  # 5 minutes
+                print(f"DEBUG: [STEP 4] Timestamp too old/future: {timestamp} vs {current_time}")
+                raise ValueError("Request timestamp outside acceptable window.")
+        
+        # Check for nonce reuse
+        is_valid, message = UsedNonce.is_nonce_valid(nonce)
+        if not is_valid:
+            print(f"DEBUG: [STEP 4] Nonce validation failed: {message}")
+            raise ValueError(f"Nonce validation failed: {message}")
+            
         UsedNonce.objects.create(nonce=nonce)
         print("DEBUG: [STEP 4] Nonce stored.")
 
