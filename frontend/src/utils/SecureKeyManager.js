@@ -159,16 +159,93 @@ export async function decryptResponse(encryptedResponse, sessionKey) {
 // --- Secure Private Key Storage (using idb) ---
 import { openDB } from 'idb';
 
-export async function saveEncryptedPrivateKey(encrypted, salt, iv) {
-    const db = await openDB('secure-cipher-bank', 1, {
-        upgrade(db) { db.createObjectStore('keys'); }
+// Function to create/recreate database connection
+function createDbConnection() {
+    return openDB('secure-cipher-bank', 2, {
+        upgrade(db, oldVersion) {
+            console.log('Upgrading database from version', oldVersion, 'to version 2');
+            if (!db.objectStoreNames.contains('keys')) {
+                db.createObjectStore('keys');
+                console.log('Created keys object store');
+            }
+        }
     });
-    await db.put('keys', { encrypted, salt, iv }, 'user-private-key');
+}
+
+// Shared database instance
+let dbPromise = createDbConnection();
+
+export async function saveEncryptedPrivateKey(encrypted, salt, iv) {
+    try {
+        let db = await dbPromise;
+        return await db.put('keys', { encrypted, salt, iv }, 'user-private-key');
+    } catch (error) {
+        console.error('Error saving encrypted private key:', error);
+        
+        // If the database connection is invalid, recreate it
+        if (error.name === 'InvalidStateError' && error.message.includes('closing')) {
+            console.log('Database connection was closed, recreating connection...');
+            dbPromise = createDbConnection();
+            const db = await dbPromise;
+            return await db.put('keys', { encrypted, salt, iv }, 'user-private-key');
+        }
+        
+        throw error;
+    }
 }
 
 export async function fetchEncryptedPrivateKey() {
-    const db = await openDB('secure-cipher-bank', 1);
-    return await db.get('keys', 'user-private-key');
+    try {
+        let db = await dbPromise;
+        return await db.get('keys', 'user-private-key');
+    } catch (error) {
+        console.error('Error fetching encrypted private key:', error);
+        
+        // If the database connection is invalid, recreate it and try again
+        if (error.name === 'InvalidStateError' && error.message.includes('closing')) {
+            console.log('Database connection was closed, recreating connection...');
+            dbPromise = createDbConnection();
+            const db = await dbPromise;
+            return await db.get('keys', 'user-private-key');
+        }
+        
+        throw error;
+    }
+}
+
+export async function clearAllKeyData() {
+    try {
+        const db = await dbPromise;
+        
+        // Clear all data from the keys object store
+        await db.clear('keys');
+        
+        // Close the database connection
+        db.close();
+        
+        // Delete the entire database for complete cleanup
+        await new Promise((resolve, reject) => {
+            const deleteReq = indexedDB.deleteDatabase('secure-cipher-bank');
+            deleteReq.onsuccess = () => resolve();
+            deleteReq.onerror = () => reject(deleteReq.error);
+            deleteReq.onblocked = () => {
+                console.warn('Database deletion blocked, but continuing...');
+                resolve(); // Continue even if blocked
+            };
+        });
+        
+        // Reset the database promise to create a fresh connection
+        dbPromise = createDbConnection();
+        
+        console.log('All cryptographic key data cleared from IndexedDB');
+        return true;
+    } catch (error) {
+        console.error('Error clearing IndexedDB data:', error);
+        
+        // Even if clearing fails, reset the connection
+        dbPromise = createDbConnection();
+        throw error;
+    }
 }
 
 // --- Encrypt/Decrypt Private Key with PIN ---
@@ -216,13 +293,37 @@ export async function decryptPrivateKey(encrypted, pin, salt, iv) {
             key,
             encrypted
         );
-        return await window.crypto.subtle.importKey(
+        const privateKey = await window.crypto.subtle.importKey(
             'pkcs8',
             pkcs8,
             { name: 'ECDSA', namedCurve: 'P-384' },
             true,
             ['sign']
         );
+        
+        // Extract the public key from the private key using JWK
+        const keyData = await window.crypto.subtle.exportKey('jwk', privateKey);
+        
+        // Create public key JWK by removing private parts
+        const publicKeyJwk = {
+            kty: keyData.kty,
+            crv: keyData.crv,
+            x: keyData.x,
+            y: keyData.y,
+            use: 'sig',
+            key_ops: ['verify']
+        };
+        
+        // Import as public key
+        const publicKey = await window.crypto.subtle.importKey(
+            'jwk',
+            publicKeyJwk,
+            { name: 'ECDSA', namedCurve: 'P-384' },
+            true,
+            ['verify']
+        );
+        
+        return { privateKey, publicKey };
     } catch (error) {
         if (error.name === 'OperationError' || error.message.includes('decrypt')) {
             throw new Error('Invalid PIN. Please try again.');

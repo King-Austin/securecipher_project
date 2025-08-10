@@ -11,6 +11,25 @@ from .crypto_utils import CryptoUtils
 import json
 
 
+def authenticate_user_by_public_key(transaction_data):
+    """
+    Authenticate user by checking if the public_key in transaction_data 
+    exists in the User table.
+    Returns (user, error_message)
+    """
+    public_key = transaction_data.get('public_key')
+    if not public_key:
+        return None, "Authentication failed: public_key is required"
+    
+    try:
+        user = User.objects.get(public_key=public_key)
+        return user, None
+    except User.DoesNotExist:
+        return None, "Authentication failed: Invalid public key"
+    except Exception as e:
+        return None, f"Authentication failed: {str(e)}"
+
+
 class PublicKeyView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -34,7 +53,7 @@ class RegisterView(APIView):
 
         if isinstance(client_info_or_error, str):  # Error string
             print(f"DEBUG: [RegisterView.post] Crypto error: {client_info_or_error}")
-            return Response({"error": client_info_or_error}, status=400)
+            return encrypted_response(session_key, {"error": client_info_or_error}, status.HTTP_400_BAD_REQUEST)
 
         transaction_data['account_number'] = transaction_data.get("phone_number").lstrip('0').replace('+234', '').replace(' ', '').replace('-', '')[:10]
         print("DEBUG: [RegisterView.post] transaction_data after account_number processing:", transaction_data)
@@ -42,7 +61,7 @@ class RegisterView(APIView):
         print("DEBUG: [RegisterView.post] serializer.is_valid() check")
         if not serializer.is_valid():
             print("DEBUG: [RegisterView.post] serializer.errors:", serializer.errors)
-            return Response(serializer.errors, status=400)
+            return encrypted_response(session_key, serializer.errors, status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
@@ -50,21 +69,28 @@ class RegisterView(APIView):
                 user = serializer.save()
         except serializers.ValidationError as ve:
             print("DEBUG: [RegisterView.post] serializers.ValidationError:", ve.detail)
-            return Response(ve.detail, status=400)
+            return encrypted_response(session_key, ve.detail, status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print("DEBUG: [RegisterView.post] Exception:", str(e))
-            return Response({'error': str(e)}, status=500)
+            return encrypted_response(session_key, {'error': str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         print("DEBUG: [RegisterView.post] User created:", user)
-        return encrypted_response(
-            session_key,
-            {
-                'user': UserSerializer(user).data,
-                'transactions': TransactionSerializer(
-                    Transaction.objects.filter(account=user).order_by('-created_at'), many=True
-                ).data
-            }
-        )
+        
+        # Prepare simple response for frontend
+        user_data = UserSerializer(user).data
+        
+        transactions_data = TransactionSerializer(
+            Transaction.objects.filter(account=user).order_by('-created_at'), many=True
+        ).data
+        
+        response_payload = {
+            'success': True,
+            'message': f'Welcome to SecureCipher, {user.first_name}!',
+            'user': user_data,
+            'transactions': transactions_data
+        }
+        
+        return encrypted_response(session_key, response_payload)
 
 
 class TransferView(APIView):
@@ -77,7 +103,15 @@ class TransferView(APIView):
 
         if error:
             print("DEBUG: [TransferView.post] Crypto error:", error)
-            return Response({"error": error}, status=400)
+            return encrypted_response(session_key, {"error": error}, status.HTTP_400_BAD_REQUEST)
+
+        # Authenticate user by public key
+        authenticated_user, auth_error = authenticate_user_by_public_key(transaction_data)
+        if auth_error:
+            print(f"DEBUG: [TransferView.post] Authentication failed: {auth_error}")
+            return encrypted_response(session_key, {"error": auth_error}, status.HTTP_401_UNAUTHORIZED)
+        
+        print(f"DEBUG: [TransferView.post] User authenticated: {authenticated_user.username}")
 
         serializer = TransferSerializer(data=transaction_data)
         print("DEBUG: [TransferView.post] serializer.is_valid() check")
@@ -88,29 +122,70 @@ class TransferView(APIView):
         amount = serializer.validated_data['amount']
         print(f"DEBUG: [TransferView.post] sender={sender}, recipient={recipient}, amount={amount}")
 
+        # Verify authenticated user matches the source account
+        if authenticated_user != sender:
+            print("DEBUG: [TransferView.post] User mismatch: authenticated user does not match source account")
+            return encrypted_response(session_key, {"error": "Authentication failed: You can only transfer from your own account"}, status.HTTP_403_FORBIDDEN)
+
         try:
             with transaction.atomic():
                 print("DEBUG: [TransferView.post] Updating balances")
+                
+
                 sender.balance -= amount
                 recipient.balance += amount
                 sender.save()
                 recipient.save()
 
                 print("DEBUG: [TransferView.post] Creating Transaction records")
-                Transaction.objects.bulk_create([
-                    Transaction(account=sender, amount=-amount, transaction_type='DEBIT', status='COMPLETED'),
-                    Transaction(account=recipient, amount=amount, transaction_type='CREDIT', status='COMPLETED')
-                ])
+                # Create more detailed transaction records
+                debit_txn = Transaction.objects.create(
+                    account=sender, 
+                    amount=-amount, 
+                    transaction_type='DEBIT', 
+                    status='COMPLETED',
+                    balance_before=sender.balance + amount,
+                    balance_after=sender.balance,
+                    description=f"Transfer to {recipient.account_number}",
+                    recipient_account_number=recipient.account_number,
+                    recipient_name=f"{recipient.first_name} {recipient.last_name}",
+                    sender_name=f"{sender.first_name} {sender.last_name}",
+                    sender_account_number=sender.account_number
+                )
+                
+                credit_txn = Transaction.objects.create(
+                    account=recipient, 
+                    amount=amount, 
+                    transaction_type='CREDIT', 
+                    status='COMPLETED',
+                    balance_before=recipient.balance - amount,
+                    balance_after=recipient.balance,
+                    description=f"Transfer from {sender.account_number}",
+                    recipient_account_number=recipient.account_number,
+                    recipient_name=f"{recipient.first_name} {recipient.last_name}",
+                    sender_name=f"{sender.first_name} {sender.last_name}",
+                    sender_account_number=sender.account_number
+                )
 
             print("DEBUG: [TransferView.post] Transfer successful")
-            return encrypted_response(session_key, {
-                'status': 'success',
-                'source_account_balance': sender.balance
-            })
+            
+            # Return simple response
+            response_data = {
+                'success': True,
+                'message': f'Successfully transferred ₦{amount} to {recipient.first_name} {recipient.last_name}',
+                'balance': str(sender.balance),
+                'user': UserSerializer(sender).data,
+                'transactions': TransactionSerializer(
+                    Transaction.objects.filter(account=sender).order_by('-created_at')[:10], 
+                    many=True
+                ).data
+            }
+            
+            return encrypted_response(session_key, response_data)
 
         except Exception as e:
             print("DEBUG: [TransferView.post] Exception:", str(e))
-            return Response({'error': f'Transfer error: {str(e)}'}, status=400)
+            return encrypted_response(session_key, {'error': f'Transfer error: {str(e)}'}, status.HTTP_400_BAD_REQUEST)
 
 
 class ValidateAccountView(APIView):
@@ -123,50 +198,91 @@ class ValidateAccountView(APIView):
 
         if error:
             print("DEBUG: [ValidateAccountView.post] Crypto error:", error)
-            return Response({"error": error}, status=400)
+            return encrypted_response(session_key, {"error": error}, status.HTTP_400_BAD_REQUEST)
+
+        # Authenticate user by public key
+        authenticated_user, auth_error = authenticate_user_by_public_key(transaction_data)
+        if auth_error:
+            print(f"DEBUG: [ValidateAccountView.post] Authentication failed: {auth_error}")
+            return encrypted_response(session_key, {"error": auth_error}, status.HTTP_401_UNAUTHORIZED)
+        
+        print(f"DEBUG: [ValidateAccountView.post] User authenticated: {authenticated_user.username}")
 
         account_number = transaction_data.get('account_number')
         print(f"DEBUG: [ValidateAccountView.post] account_number={account_number}")
         if not account_number:
             print("DEBUG: [ValidateAccountView.post] Account number missing")
-            return Response({'error': 'Account number is required.'}, status=400)
+            return encrypted_response(session_key, {'error': 'Account number is required.'}, status.HTTP_400_BAD_REQUEST)
 
         try:
-            print("DEBUG: [ValidateAccountView.post] Querying BankAccount")
-            account = BankAccount.objects.select_related('user').get(account_number=account_number)
-            user_data = UserSerializer(account.user).data
-            print("DEBUG: [ValidateAccountView.post] Account found, user_data:", user_data)
+            print("DEBUG: [ValidateAccountView.post] Querying User by account_number")
+            user = User.objects.get(account_number=account_number)
+            
+            # Return only necessary user information to minimize data exposure
+            user_data = {
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'username': user.username
+            }
+            
+            print("DEBUG: [ValidateAccountView.post] Account found, limited user_data:", user_data)
             return encrypted_response(session_key, {'user': user_data})
-        except BankAccount.DoesNotExist:
+        except User.DoesNotExist:
             print("DEBUG: [ValidateAccountView.post] Account not found")
-            return Response({'error': 'Account not found.'}, status=404)
+            return encrypted_response(session_key, {'error': 'Account not found.'}, status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print("DEBUG: [ValidateAccountView.post] Exception:", str(e))
-            return Response({'error': f'Validation failed: {str(e)}'}, status=400)
+            return encrypted_response(session_key, {'error': f'Validation failed: {str(e)}'}, status.HTTP_400_BAD_REQUEST)
 
 
 # Utility function for encrypted + signed responses
 def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
     print(f"DEBUG: [encrypted_response] session_key={session_key}, payload={payload}")
     try:
-        plaintext = json.dumps(payload).encode()
-        print("DEBUG: [encrypted_response] plaintext:", plaintext)
-        encrypted = CryptoUtils.encrypt(plaintext, session_key)
-        print("DEBUG: [encrypted_response] encrypted:", encrypted)
-        if isinstance(encrypted, dict):
-            encrypted_str = json.dumps(encrypted)
-        else:
-            encrypted_str = str(encrypted)
-        signature = CryptoUtils.sign_message(CryptoUtils.get_server_private_key(), encrypted_str.encode())
-        print("DEBUG: [encrypted_response] signature:", signature)
-
-        return Response({
-            'payload': encrypted,
+        # Convert Django ErrorDetail objects to standard format for consistent JSON serialization
+        def normalize_payload(obj):
+            if hasattr(obj, '__dict__') and hasattr(obj, 'string') and hasattr(obj, 'code'):
+                # This is an ErrorDetail object, convert to string
+                return str(obj)
+            elif isinstance(obj, dict):
+                return {k: normalize_payload(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [normalize_payload(item) for item in obj]
+            else:
+                return obj
+        
+        # Normalize the payload to ensure consistent serialization
+        normalized_payload = normalize_payload(payload)
+        print(f"DEBUG: [encrypted_response] normalized_payload={normalized_payload}")
+        
+        # Create canonical JSON for signing (this is what will be verified)
+        payload_json = json.dumps(normalized_payload, separators=(',', ':'), sort_keys=True)
+        print(f"DEBUG: [encrypted_response] payload_json for signing={payload_json}")
+        
+        signature = CryptoUtils.sign_message(CryptoUtils.get_server_private_key(), payload_json.encode())
+        server_pubkey = CryptoUtils.get_server_public_key()
+        
+        structured_response = {
+            'payload': normalized_payload,  # Use normalized payload for consistency
             'signature': signature,
-            'server_pubkey': CryptoUtils.get_server_public_key()
-        }, status=status_code)
+            'server_pubkey': server_pubkey
+        }
+        
+        print(f"DEBUG: [encrypted_response] structured_response: {structured_response}")
+        
+        # Encrypt the entire structured response
+        encrypted = CryptoUtils.encrypt(json.dumps(structured_response).encode(), session_key)
+        print(f"DEBUG: [encrypted_response] encrypted: {encrypted}")
 
+        # Return simple {iv, ciphertext} format
+        if isinstance(encrypted, dict):
+            return Response({
+                'iv': encrypted['iv'],
+                'ciphertext': encrypted['ciphertext']
+            }, status=status_code)
+        
+        return Response({'error': 'Encryption failed'}, status=500)
+        
     except Exception as e:
-        print("DEBUG: [encrypted_response] Failed:", str(e))
+        print(f"DEBUG: [encrypted_response] Failed: {e}")
         return Response({'error': 'Encryption or signing failed'}, status=500)
-

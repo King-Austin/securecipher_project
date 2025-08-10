@@ -11,7 +11,23 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-dev-key-for-development-only-do-not-use-in-production'
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-banking-api-fallback-key-change-this')
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -33,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'encrypted_model_fields',
     'core',
 ]
 
@@ -117,34 +134,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
-# Simple JWT Configuration
-# SIMPLE_JWT = {
-#     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-#     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-#     'ROTATE_REFRESH_TOKENS': True,
-#     'BLACKLIST_AFTER_ROTATION': True,
-#     'UPDATE_LAST_LOGIN': True,
 
-#     'ALGORITHM': 'HS256',
-#     'SIGNING_KEY': SECRET_KEY,
-#     'VERIFYING_KEY': None,
-#     'AUDIENCE': None,
-#     'ISSUER': None,
-
-#     'AUTH_HEADER_TYPES': ('Bearer',),
-#     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-#     'USER_ID_FIELD': 'id',
-#     'USER_ID_CLAIM': 'user_id',
-
-#     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-#     'TOKEN_TYPE_CLAIM': 'token_type',
-
-#     'JTI_CLAIM': 'jti',
-
-#     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-#     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
-#     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
-# }
 
 
 # Banking App Specific Settings
@@ -201,7 +191,14 @@ LOGGING = {
     },
 }
 
-# Admin Site Configuration
+# Admin Site Configuration for SecureCipher Banking
 ADMIN_SITE_HEADER = 'SecureCipher Banking Administration'
 ADMIN_SITE_TITLE = 'SecureCipher Banking Admin'
 ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Banking Administration'
+
+# SecureCipher Banking Configuration
+BANK_NAME = 'SecureCipher Bank'
+BANK_CODE = 'SCB'
+BANK_SLOGAN = 'Secure. Encrypted. Trusted.'
+
+FIELD_ENCRYPTION_KEY = "bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc="

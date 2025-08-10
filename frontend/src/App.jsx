@@ -1,9 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
 
 // Layouts
 import Layout from './components/layout/Layout';
-
-// Common Components
 
 // Pages
 import Registration from './pages/Registration';
@@ -11,9 +10,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import SendMoney from './pages/SendMoney';
 import SecurityDetails from './pages/SecurityDetails';
-import Settings from './pages/Settings';
+import Transactions from './pages/Transactions';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
+import Cards from './pages/Cards';
 
 // Error Handling
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -21,61 +21,45 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 // Styles
 import './App.css';
 
-import RecentTransactions from './components/dashboard/RecentTransactions';
-
 function AppRoutes() {
-  // Use localStorage for authentication check
-  const isAuthenticated = !!localStorage.getItem('userProfile');
+  const isAuthenticated = !!(localStorage.getItem('userProfile') && localStorage.getItem('userTransactions'));
+
   return (
     <Routes>
-      {/* Root redirect: send new users to register, authenticated users to dashboard */}
+      {/* Root redirect */}
       <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/register" />} />
       
       {/* Public routes */}
-      <Route path="/register" element={<Registration />} /> 
-      <Route path="/login" element={<Login />} />
-      
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Registration />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
 
-      
-      {/* Protected routes with Layout */}
-      <Route path="/dashboard" element={
+      {/* Protected routes */}
+      <Route path="/dashboard" element={isAuthenticated ? (
         <Layout>
           <Dashboard />
         </Layout>
-      } />
-      <Route path="/send-money" element={
+      ) : <Navigate to="/register" />} />
+      <Route path="/send-money" element={isAuthenticated ? (
         <Layout>
           <SendMoney />
         </Layout>
-      } />
-      <Route path="/security" element={
+      ) : <Navigate to="/register" />} />
+      <Route path="/security-details" element={isAuthenticated ? (
         <Layout>
           <SecurityDetails />
         </Layout>
-      } />
-      <Route path="/settings" element={
+      ) : <Navigate to="/register" />} />
+      <Route path="/transactions" element={isAuthenticated ? (
         <Layout>
-          <Settings />
+          <Transactions />
         </Layout>
-      } />
-      
-      {/* Placeholder routes for future features */}
-      <Route path="/cards" element={
+      ) : <Navigate to="/register" />} />
+      <Route path="/cards" element={isAuthenticated ? (
         <Layout>
-          <div className="p-6 text-center">
-            <h1 className="text-2xl font-semibold text-gray-800 mb-4">My Cards</h1>
-            <p className="text-gray-600">This feature is coming soon.</p>
-          </div>
+          <Cards />
         </Layout>
-      } />
-      <Route path="/transactions" element={
-        <Layout>
-          <div className="p-6 text-center">
-            <RecentTransactions />
-          </div>
-        </Layout>
-      } />
-      
+      ) : <Navigate to="/register" />} />
+
       {/* Error routes */}
       <Route path="/server-error" element={<ServerError />} />
       <Route path="*" element={<NotFound />} />

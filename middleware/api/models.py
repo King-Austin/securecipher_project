@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
+import uuid
 
 class MiddlewareKey(models.Model):
     label = models.CharField(max_length=50, unique=True)
@@ -51,3 +52,72 @@ class UsedNonce(models.Model):
             return True, "Valid"
         except Exception:
             return True, "Valid"  # Fallback for non-timestamp nonces
+
+
+class TransactionMetadata(models.Model):
+    """Store metadata for each transaction passing through the middleware"""
+    
+    # Core identifiers
+    transaction_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    
+    # Timing information
+    timestamp = models.DateTimeField(auto_now_add=True)
+    processing_time_ms = models.FloatField(null=True, blank=True, help_text="Processing time in milliseconds")
+    
+    # Client information
+    client_ip = models.GenericIPAddressField(help_text="Client IP address")
+    client_public_key_hash = models.CharField(max_length=64, help_text="SHA256 hash of client public key")
+    
+    # Request details
+    nonce = models.CharField(max_length=255, db_index=True)
+    target_url = models.CharField(max_length=500, help_text="Target downstream URL")
+    payload_hash = models.CharField(max_length=64, help_text="SHA256 hash of transaction payload")
+    payload_size_bytes = models.IntegerField(default=0, help_text="Size of encrypted payload in bytes")
+    
+    # Cryptographic details
+    session_key_hash = models.CharField(max_length=64, help_text="SHA256 hash of session key")
+    middleware_signature = models.TextField(help_text="Middleware signature for this transaction")
+    client_signature_verified = models.BooleanField(default=False)
+    
+    # Response details  
+    status_code = models.IntegerField(help_text="HTTP status code returned")
+    downstream_response_time_ms = models.FloatField(null=True, blank=True, help_text="Downstream API response time")
+    response_size_bytes = models.IntegerField(default=0, help_text="Size of response in bytes")
+    
+    # Error handling
+    error_message = models.TextField(null=True, blank=True, help_text="Error message if transaction failed")
+    error_step = models.CharField(max_length=50, null=True, blank=True, help_text="Step where error occurred")
+    
+    # Audit trail
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'api_transaction_metadata'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['client_ip']),
+            models.Index(fields=['nonce']),
+            models.Index(fields=['status_code']),
+            models.Index(fields=['target_url']),
+        ]
+    
+    def __str__(self):
+        return f"Transaction {self.transaction_id} - {self.status_code}"
+    
+    @classmethod
+    def cleanup_old_metadata(cls, days=30):
+        """Remove metadata older than specified days"""
+        cutoff = timezone.now() - timedelta(days=days)
+        deleted, _ = cls.objects.filter(timestamp__lt=cutoff).delete()
+        return deleted
+    
+    @property
+    def is_successful(self):
+        return 200 <= self.status_code < 300
+    
+    @property
+    def processing_time_seconds(self):
+        if self.processing_time_ms:
+            return self.processing_time_ms / 1000.0
+        return None

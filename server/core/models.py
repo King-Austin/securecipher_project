@@ -1,11 +1,12 @@
 from django.db import models
-from django.core.validators import MinValueValidator
 from django.utils import timezone
 from decimal import Decimal
 import uuid
 import random
 import string
+import hashlib
 from django.contrib.auth.models import AbstractUser
+from encrypted_model_fields.fields import EncryptedCharField
 
 
 class User(AbstractUser):
@@ -17,20 +18,14 @@ class User(AbstractUser):
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(blank=True)
     occupation = models.CharField(max_length=100, blank=True)
-    nin = models.CharField(
-        max_length=11,
-        unique=True,
-        help_text="Nigerian National Identification Number",
-        null=True,
-        blank=True
-    )
-    bvn = models.CharField(
-        max_length=11,
-        unique=True,
-        help_text="Bank Verification Number",
-        null=True,
-        blank=True
-    )
+    nin_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    nin = EncryptedCharField(max_length=255, null=True, blank=True)
+    bvn_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    bvn = EncryptedCharField(max_length=255, null=True, blank=True)
+
+
+
+
     public_key = models.TextField(unique=True, blank=True, null=True)
 
     # Account fields (merged from BankAccount)
@@ -59,20 +54,6 @@ class User(AbstractUser):
     class Meta:
         db_table = 'user'
 
-
-# class TransactionCategory(models.Model):
-#     name = models.CharField(max_length=50, unique=True)
-#     description = models.TextField(blank=True)
-#     icon = models.CharField(max_length=50, blank=True)
-#     is_active = models.BooleanField(default=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return self.name
-
-#     class Meta:
-#         db_table = 'transaction_categories'
-#         verbose_name_plural = 'Transaction Categories'
 
 
 class Transaction(models.Model):

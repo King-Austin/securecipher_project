@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Shield, AlertCircle, Loader2 } from 'lucide-react';
-import { secureRequest } from '../services/secureApi';
+import { secureRegistrationRequest } from '../services/secureApi';
 
 const steps = ['Personal Information', 'Verification', 'Account Security'];
 
@@ -118,6 +118,8 @@ export default function Registration() {
     }
     setIsSubmitting(true);
     setSubmissionError('');
+    setErrors({}); // Clear any existing errors
+    
     try {
       const registrationPayload = {
         email: formData.email,
@@ -133,22 +135,141 @@ export default function Registration() {
       };
       console.log('Registration Payload:', registrationPayload);
       // Unified secure request
-      const response = await secureRequest({
+      const response = await secureRegistrationRequest({
         target: 'register',
         payload: registrationPayload,
         pin: formData.pin
       });
       if (response && response.user) {
-        localStorage.setItem('userProfile', JSON.stringify(response.user));
-        localStorage.setItem('userAccounts', JSON.stringify(response.accounts || []));
-        localStorage.setItem('userTransactions', JSON.stringify(response.transactions || []));
-        setSuccess(true);
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 1500);
+        console.log('✅ Registration Success Response:', response);
+        
+        // Store user data with proper error handling
+        try {
+          localStorage.setItem('userProfile', JSON.stringify(response.user));
+          
+          // Ensure userTransactions exists even if empty
+          const transactions = response.transactions || [];
+          localStorage.setItem('userTransactions', JSON.stringify(transactions));
+          
+          console.log('✅ User data stored in localStorage:', {
+            userProfile: response.user,
+            userTransactions: transactions
+          });
+          
+          // Set success state for UI feedback
+          setSuccess(true);
+          
+          // Wait a bit longer to ensure localStorage is properly set
+          setTimeout(() => {
+            console.log('✅ Redirecting to dashboard...');
+            
+            // Try navigate first
+            try {
+              navigate('/dashboard', { replace: true });
+              
+              // Fallback: if navigate doesn't work, use window.location
+              setTimeout(() => {
+                if (window.location.pathname !== '/dashboard') {
+                  console.log('🔄 Navigate failed, using window.location...');
+                  window.location.href = '/dashboard';
+                }
+              }, 500);
+              
+            } catch (navError) {
+              console.error('❌ Navigation error:', navError);
+              // Force redirect using window.location
+              window.location.href = '/dashboard';
+            }
+          }, 1500);
+          
+        } catch (storageError) {
+          console.error('❌ Error storing user data:', storageError);
+          setSubmissionError('Registration succeeded but failed to save user data. Please try logging in.');
+        }
+      } else {
+        console.error('❌ Invalid response structure:', response);
+        setSubmissionError('Registration response was invalid. Please try again.');
       }
     } catch (err) {
-      setSubmissionError(err.message || 'An unexpected error occurred. Please try again.');
+      console.error('🚨 Registration Error:', err);
+      
+      // Enhanced error handling for backend validation errors
+      if (err.payload && typeof err.payload === 'object') {
+        const fieldErrors = err.payload;
+        const newErrors = {};
+        let errorCount = 0;
+        
+        // Process each field error
+        Object.keys(fieldErrors).forEach(field => {
+          const fieldError = fieldErrors[field];
+          
+          // Handle array of errors (Django validation format)
+          if (Array.isArray(fieldError) && fieldError.length > 0) {
+            newErrors[field] = fieldError[0]; // Take the first error message
+            errorCount++;
+          } 
+          // Handle string errors
+          else if (typeof fieldError === 'string') {
+            newErrors[field] = fieldError;
+            errorCount++;
+          }
+        });
+        
+        if (errorCount > 0) {
+          setErrors(newErrors);
+          
+          // Create a user-friendly summary message
+          const errorMessages = Object.entries(newErrors).map(([field, message]) => {
+            // Map field names to user-friendly labels
+            const fieldLabels = {
+              phone_number: 'Phone Number',
+              public_key: 'Account Security',
+              username: 'Username',
+              email: 'Email',
+              bvn: 'BVN',
+              nin: 'NIN',
+              first_name: 'First Name',
+              last_name: 'Last Name'
+            };
+            
+            const fieldLabel = fieldLabels[field] || field;
+            return `${fieldLabel}: ${message}`;
+          });
+          
+          setSubmissionError(
+            `Please fix the following errors:\n• ${errorMessages.join('\n• ')}`
+          );
+          
+          // Scroll to first error field
+          setTimeout(() => {
+            const firstErrorField = Object.keys(newErrors)[0];
+            const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+            if (errorElement) {
+              errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              errorElement.focus();
+            } else if (firstErrorRef.current) {
+              firstErrorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          
+          // If phone_number or username errors, go back to appropriate step
+          if (newErrors.phone_number && currentStep !== 0) {
+            setCurrentStep(0); // Phone is in step 1
+          } else if (newErrors.username && currentStep !== 2) {
+            setCurrentStep(2); // Username is in step 3
+          }
+        } else {
+          setSubmissionError('Registration failed. Please check your information and try again.');
+        }
+      } 
+      // Handle other error formats
+      else if (err.error) {
+        setSubmissionError(err.error);
+      } else if (err.message) {
+        setSubmissionError(err.message);
+      } else {
+        setSubmissionError('An unexpected error occurred during registration. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -173,8 +294,14 @@ export default function Registration() {
         <div className="bg-white rounded-xl shadow-lg p-10 max-w-md text-center">
           <Shield className="mx-auto mb-4 h-12 w-12 text-green-600" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Account Created!</h2>
-          <p className="text-green-700 mb-4">Your account has been securely created. Redirecting to dashboard...</p>
+          <p className="text-green-700 mb-4">
+            Your SecureCipher account has been securely created with encrypted keys. 
+            Redirecting to your dashboard...
+          </p>
           <Loader2 className="animate-spin h-6 w-6 mx-auto text-green-500" />
+          <p className="text-sm text-gray-500 mt-4">
+            If you're not redirected automatically, <a href="/dashboard" className="text-green-600 underline">click here</a>
+          </p>
         </div>
       </div>
     );
@@ -210,12 +337,18 @@ export default function Registration() {
           {renderStep()}
 
           {submissionError && (
-            <div ref={firstErrorRef} className="flex flex-col space-y-1 text-sm text-red-600 p-3 bg-red-50 rounded-md">
+            <div ref={firstErrorRef} className="flex flex-col space-y-1 text-sm text-red-600 p-3 bg-red-50 rounded-md border border-red-200">
               <div className="flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5" />
-                <span>Error</span>
+                <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium">Registration Error</span>
               </div>
-              <p>{submissionError}</p>
+              <div className="ml-7">
+                {submissionError.split('\n').map((line, index) => (
+                  <p key={index} className={index === 0 ? 'font-medium' : ''}>
+                    {line}
+                  </p>
+                ))}
+              </div>
             </div>
           )}
 

@@ -167,6 +167,11 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Admin Site Configuration for SecureCipher Middleware
+ADMIN_SITE_HEADER = 'SecureCipher Middleware Administration'
+ADMIN_SITE_TITLE = 'SecureCipher Middleware Admin'
+ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
+
 # SecureCipher Logging Configuration
 
 

@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
-from .models import ApiKeyPair
 
 class CryptoUtils:
     @staticmethod
@@ -65,6 +64,9 @@ class CryptoUtils:
 
     @staticmethod
     def get_or_create_server_keypair():
+        # Lazy import to avoid circular import
+        from .models import ApiKeyPair
+        
         keypair = ApiKeyPair.objects.filter(label="active").first()
         if not keypair:
             private_key = ec.generate_private_key(ec.SECP384R1())
@@ -209,3 +211,39 @@ class CryptoUtils:
         except Exception as e:
             print(f"DEBUG: [CryptoPreprocess] Exception: {e}")
             return None, None, str(e)
+        
+
+# Field-level encryption utilities using Fernet (AES-128 in CBC mode)
+from django.conf import settings
+from django.db import models
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+
+# securecipher/utils/encryption.py
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from django.conf import settings
+
+def _get_fernet():
+    # Use PBKDF2 to derive a 32-byte key from SECRET_KEY
+    salt = b"securecipher_encryption_salt"  # static salt for reproducibility
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=390000,
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(settings.SECRET_KEY.encode()))
+    return Fernet(key)
+
+def encrypt_field(value: str) -> str:
+    return _get_fernet().encrypt(value.encode()).decode()
+
+def decrypt_field(value: str) -> str:
+    return _get_fernet().decrypt(value.encode()).decode()

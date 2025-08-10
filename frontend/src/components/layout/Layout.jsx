@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Home, 
-  Send, 
-  CreditCard, 
-  ClipboardList, 
-  Shield, 
-  Settings, 
-  LogOut, 
-  Menu, 
+  Home,
+  Send,
+  CreditCard,
+  ClipboardList,
+  Shield,
+  Settings,
+  Menu,
   X,
   Zap
 } from 'lucide-react';
@@ -18,24 +17,13 @@ export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Remove useAuth, use localStorage for logout
-  const handleLogout = () => {
-    // Clear user data from localStorage
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('userAccounts');
-    localStorage.removeItem('userTransactions');
-    localStorage.removeItem('keyUnlocked');
-    navigate('/login');
-  };
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <Home className="w-5 h-5" /> },
     { path: '/send-money', label: 'Send Money', icon: <Send className="w-5 h-5" /> },
     { path: '/cards', label: 'My Cards', icon: <CreditCard className="w-5 h-5" /> },
-    { path: '/transactions', label: 'Transactions', icon: <ClipboardList className="w-5 h-5" /> },
-    { path: '/security', label: 'Security', icon: <Shield className="w-5 h-5" /> },
-    { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
-    { path: '/demo', label: 'Demo', icon: <Zap className="w-5 h-5" /> },
+    { path: '/transactions', label: 'Transaction History', icon: <ClipboardList className="w-5 h-5" /> },
+    { path: '/security-details', label: 'Security', icon: <Shield className="w-5 h-5" /> },
   ];
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -64,14 +52,7 @@ export default function Layout({ children }) {
                   <span className="ml-3">{item.label}</span>
                 </Link>
               ))}
-              <hr className="my-2 border-gray-200" />
-              <button 
-                onClick={handleLogout}
-                className="flex items-center w-full px-4 py-3 text-sm text-gray-700 rounded-md hover:bg-gray-100"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="ml-3">Sign Out</span>
-              </button>
+
             </nav>
           </div>
         </div>
@@ -131,14 +112,7 @@ export default function Layout({ children }) {
                       <span className="ml-3">{item.label}</span>
                     </Link>
                   ))}
-                  <hr className="my-2 border-gray-200" />
-                  <button 
-                    onClick={handleLogout}
-                    className="flex items-center w-full px-4 py-3 text-sm text-gray-700 rounded-md hover:bg-gray-100"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    <span className="ml-3">Sign Out</span>
-                  </button>
+
                 </nav>
               </div>
             </div>

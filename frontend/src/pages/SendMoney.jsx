@@ -10,34 +10,39 @@ export default function SendMoney() {
     amount: '',
     description: ''
   });
-  const [pin, setPin] = useState('');
+  const [storedPin, setStoredPin] = useState(''); // Store PIN from step 1
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [transactionResult, setTransactionResult] = useState(null);
   const [recipientInfo, setRecipientInfo] = useState(null);
-  const [accounts, setAccounts] = useState([]);
+  const [user, setUser] = useState({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Load user accounts from local storage (set by Registration/Login)
+  // Load user data from localStorage (set by Registration/Login)
   useEffect(() => {
-    const userAccounts = localStorage.getItem('userAccounts');
-    if (userAccounts) {
-      setAccounts(JSON.parse(userAccounts));
+    const userData = localStorage.getItem('userProfile');
+    if (userData) {
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
       setIsAuthenticated(true);
+      console.log('SendMoney: Loaded user data:', parsedUser);
     }
   }, []);
 
-  // Validate amount before proceeding to next step
+  // Validate amount and PIN, then validate account
   const handleNextStep = async () => {
-    const account = accounts?.[0];
-    const available = account ? parseFloat(account.available_balance) : 0;
+    const available = parseFloat(user.balance) || 0;
     const amount = parseFloat(transactionData.amount);
     const toAccount = transactionData.to_account;
 
     // Validation checks
-    if (!toAccount || !transactionData.amount) {
-      setError('Please fill in all required fields.');
+    if (!toAccount || !transactionData.amount || !storedPin) {
+      setError('Please fill in all required fields including PIN.');
+      return;
+    }
+    if (storedPin.length !== 6) {
+      setError('Please enter your 6-digit PIN.');
       return;
     }
     if (isNaN(amount) || amount <= 0) {
@@ -48,12 +53,12 @@ export default function SendMoney() {
       setError('Invalid account number. Please enter a 10-digit account number.');
       return;
     }
-    if (account && toAccount === account.account_number) {
+    if (user && toAccount === user.account_number) {
       setError('You cannot send money to your own account.');
       return;
     }
     if (isNaN(available) || available <= 0) {
-      setError('Invalid account balance.');
+      setError('Insufficient account balance. Please check your account.');
       return;
     }
     if (amount > available) {
@@ -61,23 +66,39 @@ export default function SendMoney() {
       return;
     }
 
-    // Fetch recipient info securely
     try {
-      const payload = { account_number: transactionData.to_account };
+      setLoading(true);
+      
+      // Validate recipient account using secure request with PIN
+      console.log('Validating recipient account...');
+      const payload = { 
+        account_number: transactionData.to_account,
+      };
       const response = await secureRequest({
         target: 'validate_account',
         payload,
-        pin // PIN is not strictly needed for validation, but can be required by backend
+        pin: storedPin
       });
+      
       if (response && response.user) {
         setRecipientInfo(response.user);
         setError('');
         setStep(2);
-      } else {
-        setError('Recipient account not found.');
-      }
+        console.log('Account validation successful:', response.user);
+      } 
     } catch (err) {
-      setError('Failed to validate recipient account.');
+      console.error('Account validation error:', err);
+      let errorMessage = 'An error occurred while validating the account. Please try again.';
+      
+      if (err.message.includes('Invalid PIN')) {
+        errorMessage = 'Invalid PIN. Please enter the correct PIN.';
+      } else if (err.message.includes('Account not found')) {
+        errorMessage = 'Recipient account not found. Please check the account number.';
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,16 +118,16 @@ export default function SendMoney() {
   const handlePinChange = (e) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
     if (value.length <= 6) {
-      setPin(value);
+      setStoredPin(value);
       setError('');
     }
   };
 
-  // Use SecureKeyManager to verify PIN before transaction
+  // Use stored PIN for final transaction
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (pin.length !== 6) {
-      setError('Please enter your 6-digit PIN.');
+    if (storedPin.length !== 6) {
+      setError('Invalid PIN. Please go back and re-enter your PIN.');
       return;
     }
 
@@ -114,52 +135,54 @@ export default function SendMoney() {
     setError('');
 
     try {
-      const account = accounts && accounts[0];
-      if (!account) throw new Error('No account found.');
+      if (!user || !user.account_number) {
+        throw new Error('No account found. Please login again.');
+      }
 
       // Final validation before sending
       const amount = parseFloat(transactionData.amount);
+      const available = parseFloat(user.balance) || 0;
+      
       if (isNaN(amount) || amount <= 0) {
         setError('Amount must be greater than zero.');
         setLoading(false);
         return;
       }
-      if (amount > parseFloat(account.available_balance)) {
-        setError('Insufficient funds.');
+      if (amount > available) {
+        setError(`Insufficient funds. Available balance: ₦${available.toLocaleString()}`);
         setLoading(false);
         return;
       }
 
-      // Verify PIN and unlock key before sending
-      const keyData = await SecureKeyManager.fetchEncryptedPrivateKey();
-      if (!keyData) throw new Error('No encrypted key found. Please login again.');
-      await SecureKeyManager.decryptPrivateKey(keyData.encrypted, pin, keyData.salt, keyData.iv);
-
       const payload = {
-        from_account: account.account_number,
-        to_account: transactionData.to_account,
+        source_account_number: user.account_number,
+        destination_account_number: transactionData.to_account,
         amount: transactionData.amount,
         description: transactionData.description || 'Fund Transfer',
       };
 
-      // Use secureRequest for transaction
+      console.log('Transfer payload:', payload);
+
+      // Use secureRequest with stored PIN
       const response = await secureRequest({
         target: 'transfer',
         payload,
-        pin
+        pin: storedPin
       });
 
-      if (response.success) {
+      console.log('Transfer response:', response);
+
+      if (response && response.success) {
         setTransactionResult(response);
         setSuccess(true);
 
-        // Update user data and accounts in localStorage if provided by server
+        // Clear sensitive data after successful transaction
+        setStoredPin('');
+
+        // Update user data in localStorage if provided by server
         if (response.user) {
           localStorage.setItem('userProfile', JSON.stringify(response.user));
-        }
-        if (response.accounts) {
-          localStorage.setItem('userAccounts', JSON.stringify(response.accounts));
-          setAccounts(response.accounts); // update local state for immediate UI update
+          setUser(response.user);
         }
         if (response.transactions) {
           localStorage.setItem('userTransactions', JSON.stringify(response.transactions));
@@ -169,7 +192,19 @@ export default function SendMoney() {
       }
     } catch (err) {
       console.error('Transfer Error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'An unexpected error occurred.';
+      
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (err.message.includes('Insufficient funds')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('not found')) {
+        errorMessage = 'Recipient account not found. Please check the account number.';
+      } else if (err.message.includes('PIN') || err.message.includes('key')) {
+        errorMessage = 'Invalid PIN or authentication failed. Please try again.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -179,7 +214,7 @@ export default function SendMoney() {
   const resetForm = () => {
     setStep(1);
     setTransactionData({ to_account: '', amount: '', description: '' });
-    setPin('');
+    setStoredPin('');
     setError('');
     setSuccess(false);
     setTransactionResult(null);
@@ -210,15 +245,26 @@ export default function SendMoney() {
         <Check className="mx-auto h-16 w-16 text-green-500 bg-green-100 rounded-full p-2" />
         <h2 className="mt-4 text-2xl font-bold text-gray-800">Transfer Successful!</h2>
         <p className="mt-2 text-gray-600">
-          You have successfully sent <strong>₦{parseFloat(transactionData.amount).toLocaleString()}</strong> to account <strong>{transactionData.to_account}</strong>.
+          You have successfully sent <strong>₦{parseFloat(transactionData.amount).toLocaleString()}</strong> to <strong>{recipientInfo?.first_name} {recipientInfo?.last_name}</strong> (Account: {transactionData.to_account}).
         </p>
-        <div className="mt-6 text-left bg-gray-50 p-4 rounded-md">
-          <p className="text-sm text-gray-500">Transaction ID:</p>
-          <p className="font-mono text-xs text-gray-800 break-all">{transactionResult?.debit_transaction_id}</p>
-        </div>
+        {transactionResult && (
+          <div className="mt-6 space-y-4">
+            <div className="text-left bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500">Transaction Details:</p>
+              <div className="mt-2 space-y-1 text-xs">
+                <p><span className="text-gray-600">Amount:</span> <span className="font-semibold">₦{parseFloat(transactionData.amount).toLocaleString()}</span></p>
+                <p><span className="text-gray-600">New Balance:</span> <span className="font-semibold text-green-600">₦{transactionResult.balance ? parseFloat(transactionResult.balance).toLocaleString() : 'Updated'}</span></p>
+                <p><span className="text-gray-600">Status:</span> <span className="font-semibold text-green-600">Completed</span></p>
+                {transactionResult.message && (
+                  <p><span className="text-gray-600">Message:</span> <span className="text-green-600">{transactionResult.message}</span></p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={resetForm}
-          className="mt-8 w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="mt-8 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           Make Another Transfer
         </button>
@@ -230,28 +276,30 @@ export default function SendMoney() {
     <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Send Money</h1>
-        {accounts && accounts[0] && (
+        {user && user.balance && (
           <div className="text-right">
             <p className="text-sm text-gray-500">Available Balance</p>
-            <p className="text-xl font-semibold text-indigo-600">
-              ₦{parseFloat(accounts[0].available_balance).toLocaleString()}
+            <p className="text-xl font-semibold text-green-600">
+              ₦{parseFloat(user.balance).toLocaleString()}
             </p>
+            <p className="text-xs text-gray-400">Account: {user.account_number}</p>
           </div>
         )}
       </div>
 
       {/* Stepper */}
       <div className="flex items-center mb-8">
-        <div className={`flex-1 text-center ${step >= 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <div className="mx-auto h-8 w-8 rounded-full border-2 flex items-center justify-center bg-white">1</div>
-          <p className="text-xs mt-1">Details</p>
+        <div className={`flex-1 text-center ${step >= 1 ? 'text-green-600' : 'text-gray-400'}`}>
+          <div className={`mx-auto h-8 w-8 rounded-full border-2 flex items-center justify-center ${step >= 1 ? 'border-green-600 bg-green-50' : 'border-gray-300 bg-white'}`}>1</div>
+          <p className="text-xs mt-1">Enter Details</p>
         </div>
-        <div className={`flex-1 h-px ${step > 1 ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
-        <div className={`flex-1 text-center ${step >= 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <div className="mx-auto h-8 w-8 rounded-full border-2 flex items-center justify-center bg-white">2</div>
-          <p className="text-xs mt-1">Confirm</p>
+        <div className={`flex-1 h-px ${step > 1 ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+        <div className={`flex-1 text-center ${step >= 2 ? 'text-green-600' : 'text-gray-400'}`}>
+          <div className={`mx-auto h-8 w-8 rounded-full border-2 flex items-center justify-center ${step >= 2 ? 'border-green-600 bg-green-50' : 'border-gray-300 bg-white'}`}>2</div>
+          <p className="text-xs mt-1">Confirm & Send</p>
         </div>
       </div>
+
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
@@ -275,7 +323,8 @@ export default function SendMoney() {
                   id="to_account"
                   value={transactionData.to_account}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  maxLength="10"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                   placeholder="0123456789"
                 />
               </div>
@@ -289,9 +338,16 @@ export default function SendMoney() {
                   id="amount"
                   value={transactionData.amount}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  min="1"
+                  step="0.01"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                   placeholder="5000.00"
                 />
+                {user.balance && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Maximum: ₦{parseFloat(user.balance).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700">
@@ -303,18 +359,39 @@ export default function SendMoney() {
                   id="description"
                   value={transactionData.description}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="e.g., For groceries"
+                  maxLength="100"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                  placeholder="e.g., For groceries, Birthday gift"
                 />
+              </div>
+              <div>
+                <label htmlFor="pin" className="block text-sm font-medium text-gray-700">
+                  Enter your 6-digit PIN to validate account
+                </label>
+                <input
+                  type="password"
+                  name="pin"
+                  id="pin"
+                  maxLength="6"
+                  value={storedPin}
+                  onChange={handlePinChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 text-center tracking-[1em]"
+                  placeholder="••••••"
+                />
+                <div className="mt-2 p-3 bg-blue-50 rounded text-blue-700 text-sm">
+                  <p><strong>🔐 PIN Required for Account Validation</strong></p>
+                  <p className="text-xs mt-1">Your PIN is needed to securely validate the recipient's account before proceeding.</p>
+                </div>
               </div>
             </div>
             <div className="mt-6">
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                disabled={loading || !transactionData.to_account || !transactionData.amount || storedPin.length !== 6}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue
+                {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Validate Account & Continue'}
               </button>
             </div>
           </div>
@@ -336,7 +413,7 @@ export default function SendMoney() {
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Amount:</span>
-                <span className="font-bold text-xl text-indigo-600">₦{parseFloat(transactionData.amount).toLocaleString()}</span>
+                <span className="font-bold text-xl text-green-600">₦{parseFloat(transactionData.amount).toLocaleString()}</span>
               </div>
               {transactionData.description && (
                 <div className="flex justify-between">
@@ -344,44 +421,33 @@ export default function SendMoney() {
                   <span className="font-medium text-gray-800">{transactionData.description}</span>
                 </div>
               )}
+              <div className="border-t pt-3 mt-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Your balance after transfer:</span>
+                  <span className="font-medium text-gray-800">₦{(parseFloat(user.balance || 0) - parseFloat(transactionData.amount || 0)).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
             <div className="mt-6">
-              <label htmlFor="pin" className="block text-sm font-medium text-gray-700">
-                Enter your 6-digit PIN to authorize
-              </label>
-              <input
-                type="password"
-                name="pin"
-                id="pin"
-                maxLength="6"
-                value={pin}
-                onChange={handlePinChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center tracking-[1em]"
-                placeholder="••••••"
-              />
-              <div className="mt-2 p-3 bg-green-50 rounded text-green-700 text-sm">
-                <strong>What is your PIN used for?</strong>
-                <ul className="list-disc ml-5 mt-1">
-                  <li>Your PIN encrypts and protects your private key on this device.</li>
-                  <li>It is required to authorize secure transactions and access your account.</li>
-                  <li>Never share your PIN with anyone. It cannot be recovered if forgotten.</li>
-                </ul>
+              <div className="p-3 bg-green-50 rounded text-green-700 text-sm mb-4">
+                <p><strong>🔐 Ready to Send</strong></p>
+                <p className="text-xs mt-1">Your PIN has been verified. Click "Confirm & Send Money" to complete the transfer.</p>
               </div>
             </div>
             <div className="mt-6 flex items-center justify-between space-x-4">
               <button
                 type="button"
                 onClick={handlePrevStep}
-                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
+                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
               >
                 Back
               </button>
               <button
                 type="submit"
-                disabled={loading || pin.length !== 6}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Confirm & Send'}
+                {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Confirm & Send Money'}
               </button>
             </div>
           </div>

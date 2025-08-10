@@ -1,18 +1,17 @@
-# Minimal Banking API Dependencies - Optimized for Development & Production
-
-# Core Django Framework
-Django==5.1.7
-djangorestframework==3.15.2
-
-# Authentication & Security
-djangorestframework-simplejwt==5.3.0
-
-# CORS for Frontend Integration
+asgiref==3.9.1
+cffi==1.17.1
+cryptography==45.0.6
+Django==5.2.5
+django-appconf==1.1.0
 django-cors-headers==4.6.0
-
-
-# Production Server
+django-cryptography-5==2.0.3
+django-fernet-fields==0.6
+djangorestframework==3.15.2
+dotenv==0.9.9
 gunicorn==21.2.0
-
-# Static Files Management
-whitenoise==6.6.0
+packaging==25.0
+pycparser==2.22
+python-dotenv==1.1.1
+pytz==2025.2
+sqlparse==0.5.3
+typing_extensions==4.14.1

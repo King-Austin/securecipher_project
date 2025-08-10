@@ -3,19 +3,17 @@ import { useState, useEffect } from 'react';
 
 export default function AccountSummary() {
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
-  const [accounts, setAccounts] = useState([]);
   const [user, setUser] = useState({});
 
-  // Load user and accounts from localStorage
+  // Load user data from localStorage
   useEffect(() => {
     const userData = localStorage.getItem('userProfile');
-    const accountData = localStorage.getItem('userAccounts');
-    if (userData) setUser(JSON.parse(userData));
-    if (accountData) setAccounts(JSON.parse(accountData));
+    if (userData) {
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      console.log('AccountSummary: Loaded user data:', parsedUser);
+    }
   }, []);
-
-  // Find the primary account
-  const primaryAccount = accounts.find(acc => acc.is_primary) || accounts[0] || {};
 
   // Format number to Nigerian Naira
   const formatCurrency = (amount) => {
@@ -53,25 +51,46 @@ export default function AccountSummary() {
           <div className="flex items-baseline">
             <span className="text-2xl font-bold text-white mr-1">₦</span>
             <h3 className="text-3xl font-bold text-white">
-              {isBalanceHidden ? '•••••••' : formatCurrency(primaryAccount.available_balance)}
+              {isBalanceHidden ? '•••••••' : formatCurrency(user.balance)}
             </h3>
           </div>
         </div>
         
         <div className="flex items-center text-green-100">
           <TrendingUp className="h-4 w-4 mr-1" />
-          <span className="text-xs">Account in good standing</span>
+          <span className="text-xs">
+            Account Status: {user.status === 'ACTIVE' ? 'Active & Verified' : user.status || 'Unknown'}
+          </span>
         </div>
       </div>
       
       <div className="grid grid-cols-2 divide-x divide-gray-200 border-t border-gray-200">
         <div className="p-4">
           <p className="text-xs text-gray-500">Account Number</p>
-          <p className="text-sm font-medium text-gray-800">{primaryAccount.account_number || '...'}</p>
+          <p className="text-sm font-medium text-gray-800">{user.account_number || '...'}</p>
         </div>
         <div className="p-4">
           <p className="text-xs text-gray-500">Account Type</p>
-          <p className="text-sm font-medium text-gray-800">{primaryAccount.account_type || '...'}</p>
+          <p className="text-sm font-medium text-gray-800">{user.account_type || 'Savings'}</p>
+        </div>
+      </div>
+      
+      {/* Additional account info */}
+      <div className="grid grid-cols-2 divide-x divide-gray-200 border-t border-gray-200">
+        <div className="p-4">
+          <p className="text-xs text-gray-500">Account Holder</p>
+          <p className="text-sm font-medium text-gray-800">
+            {user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : '...'}
+          </p>
+        </div>
+        <div className="p-4">
+          <p className="text-xs text-gray-500">Member Since</p>
+          <p className="text-sm font-medium text-gray-800">
+            {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'short' 
+            }) : '...'}
+          </p>
         </div>
       </div>
     </div>
