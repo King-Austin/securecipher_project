@@ -1,9 +1,10 @@
 import requests
 import time
 from django.conf import settings
+from .config import DEFAULT_ROUTING_TABLE
 
 def get_routing_table():
-    return getattr(settings, 'ROUTING_TABLE', {})
+    return getattr(settings, 'ROUTING_TABLE', DEFAULT_ROUTING_TABLE)
 
 def send_downstream_request(method, url, data=None, headers=None, timeout=30, max_retries=3):
     headers = headers or {
@@ -31,7 +32,7 @@ def send_downstream_request(method, url, data=None, headers=None, timeout=30, ma
 
 def get_bank_public_key():
     routing_table = get_routing_table()
-    url = routing_table.get('public_key', 'http://localhost:8001/public-key')
+    url = routing_table.get('public_key', 'http://localhost:8001/public-key/')
     result, status = send_downstream_request("GET", url)
     if status != 200:
         raise ValueError(f"Failed to fetch public key from {url}: {status} {result}")

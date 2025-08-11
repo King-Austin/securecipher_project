@@ -181,9 +181,5 @@ ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
 
 
 # Define routing table for downstream services
-ROUTING_TABLE = {
-    "register": "http://localhost:8001/register/",
-    "validate_account": "http://localhost:8001/validate_account/",
-    "transfer": "http://localhost:8001/transfer/",
-    "public_key": "http://localhost:8001/public-key/",
-}
+from api.config import DEFAULT_ROUTING_TABLE
+ROUTING_TABLE = DEFAULT_ROUTING_TABLE

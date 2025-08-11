@@ -126,12 +126,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     amount=welcome_bonus,
                     balance_before=Decimal('0.00'),
                     balance_after=welcome_bonus,
-                    description='Welcome to SecureCipher - Account activation bonus',
+                    description='Activation bonus',
                     status='COMPLETED',
                     recipient_account_number=user.account_number,
                     recipient_name=f"{user.first_name} {user.last_name}",
                     sender_account_number='SYS000000',  # System account
-                    sender_name='SecureCipherTreasury',
+                    sender_name='SecureTreasury',
                 )
                 print("[UserRegistrationSerializer] Welcome bonus system credit transaction created.")
                 

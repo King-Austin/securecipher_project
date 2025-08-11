@@ -1,4 +1,5 @@
 import * as SecureKeyManager from '../utils/SecureKeyManager';
+import { API_ENDPOINTS } from '../config/apiConfig';
 
 // Special secure request handler ONLY for registration (can generate new keypairs)
 export async function secureRegistrationRequest({ target, payload, pin }) {
@@ -158,16 +159,8 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
     console.log('[Encryption] Encrypted payload:', { ciphertext, iv });
 
     // Step 8: Send to backend
-    const SECURECIPHER_MIDDLEWARE_GATEWAY_URL = 'https://qf8f50qr-8000.eun1.devtunnels.ms/api/secure/gateway/';
-    if (!SECURECIPHER_MIDDLEWARE_GATEWAY_URL) {
-        throw new Error('[Config] SECURECIPHER_MIDDLEWARE_GATEWAY_URL is not defined in environment variables');
-    }
-    if (!SECURECIPHER_MIDDLEWARE_GATEWAY_URL.startsWith('http')) {
-        throw new Error('[Config] SECURECIPHER_MIDDLEWARE_GATEWAY_URL must start with http:// or https://');
-    }
-
-    console.log('[Network] Sending encrypted payload to backend:', SECURECIPHER_MIDDLEWARE_GATEWAY_URL);
-    const res = await fetch(SECURECIPHER_MIDDLEWARE_GATEWAY_URL, {
+    console.log('[Network] Sending encrypted payload to backend:', API_ENDPOINTS.MIDDLEWARE_GATEWAY);
+    const res = await fetch(API_ENDPOINTS.MIDDLEWARE_GATEWAY, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

@@ -148,14 +148,12 @@ class TransferView(APIView):
 
                 print("DEBUG: [TransferView.post] Creating Transaction records")
                 
-                # Extract client metadata for security tracking
-                client_ip = self.get_client_ip(request)
-                user_agent = request.META.get('HTTP_USER_AGENT', '')
+
                 
                 # Create comprehensive transaction records with all fields
                 debit_txn = Transaction.objects.create(
                     account=sender, 
-                    amount=-amount, 
+                    amount=amount, 
                     transaction_type='DEBIT', 
                     status='COMPLETED',
                     balance_before=sender.balance + amount,
@@ -248,6 +246,30 @@ class ValidateAccountView(APIView):
         except Exception as e:
             print("DEBUG: [ValidateAccountView.post] Exception:", str(e))
             return encrypted_response(session_key, {'error': f'Validation failed: {str(e)}'}, status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileView(APIView):
+    """Retrieve authenticated user's data and transactions"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        # Decrypt incoming payload
+        transaction_data, session_key, error = CryptoUtils.crypto_preprocess(request.data)
+        if error:
+            return encrypted_response(session_key, {'error': error}, status.HTTP_400_BAD_REQUEST)
+
+        # Authenticate by public key
+        user, auth_error = authenticate_user_by_public_key(transaction_data)
+        if auth_error:
+            return encrypted_response(session_key, {'error': auth_error}, status.HTTP_401_UNAUTHORIZED)
+
+        # Serialize user and transactions
+        user_data = UserSerializer(user).data
+        txns = TransactionSerializer(
+            Transaction.objects.filter(account=user).order_by('-created_at'), many=True
+        ).data
+
+        return encrypted_response(session_key, {'user': user_data, 'transactions': txns})
 
 
 # Utility function for encrypted + signed responses
