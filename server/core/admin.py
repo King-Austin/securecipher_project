@@ -64,7 +64,7 @@ class CustomUserAdmin(UserAdmin):
             'classes': ('collapse',)
         }),
         ('Security & Verification', {
-            'fields': ('nin_hash', 'bvn_hash', 'public_key'),
+            'fields': ('nin', 'bvn', 'nin_hash', 'bvn_hash', 'public_key'),
             'classes': ('collapse',),
             'description': 'Sensitive information - NIN and BVN are encrypted. Only hashes shown for verification.'
         }),

@@ -336,7 +336,7 @@ export async function decryptPrivateKey(encrypted, pin, salt, iv) {
 }
 
 // Fetch server public key from backend
-const SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL = 'http://localhost:8000/api/middleware/public-key/';
+const SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL = 'https://qf8f50qr-8000.eun1.devtunnels.ms/api/middleware/public-key/';
 if (!SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL) {
     throw new Error('SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL is not defined in environment variables');
 }

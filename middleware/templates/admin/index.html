@@ -1,0 +1,135 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {% if subtitle %}{{ subtitle }} | {% endif %}{{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+/* SecureCipher Custom Admin Styling */
+#header {
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    border-bottom: 3px solid #27ae60;
+}
+
+#branding h1 {
+    color: #fff;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+#branding h1:before {
+    content: "🔐 ";
+    font-size: 1.2em;
+}
+
+.module h2, .module caption, .inline-group h2 {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+}
+
+.dashboard .module table th {
+    background: #34495e;
+    color: white;
+}
+
+/* Environment Badge */
+.environment-badge {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.env-development {
+    background: #f39c12;
+    color: white;
+}
+
+.env-staging {
+    background: #e67e22;
+    color: white;
+}
+
+.env-production {
+    background: #e74c3c;
+    color: white;
+}
+
+/* Stats Cards */
+.stats-container {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    min-width: 150px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-card h3 {
+    margin: 0;
+    font-size: 24px;
+    color: #2c3e50;
+}
+
+.stat-card p {
+    margin: 5px 0 0 0;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+</style>
+{% endblock %}
+
+{% block nav-global %}
+<div class="environment-badge env-{{ environment|default:'development' }}">
+    {{ environment|upper|default:'DEV' }}
+</div>
+{{ block.super }}
+{% endblock %}
+
+{% block content_title %}
+{% if title %}
+<h1>{{ title }}</h1>
+<!-- DEBUG: Custom Middleware Dashboard Template Loaded -->
+<div style="background: #e8f5e8; padding: 10px; margin: 10px 0; border-radius: 5px; color: #2d5d31;">
+    🔧 <strong>Custom Middleware Dashboard Active</strong> - Environment: {{ environment|default:'development'|upper }}
+</div>
+{% if show_middleware_stats %}
+<div class="stats-container">
+    <div class="stat-card">
+        <h3>{{ total_keys|default:0 }}</h3>
+        <p>Total Keys</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ active_keys|default:0 }}</h3>
+        <p>Active Keys</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ used_nonces|default:0 }}</h3>
+        <p>Used Nonces</p>
+    </div>
+    {% if show_crypto_summary %}
+    <div class="stat-card">
+        <h3>{{ requests_today|default:0 }}</h3>
+        <p>Today's Requests</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ total_requests|default:0 }}</h3>
+        <p>Total Requests</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

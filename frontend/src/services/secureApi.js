@@ -158,7 +158,7 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
     console.log('[Encryption] Encrypted payload:', { ciphertext, iv });
 
     // Step 8: Send to backend
-    const SECURECIPHER_MIDDLEWARE_GATEWAY_URL = 'http://localhost:8000/api/secure/gateway/';
+    const SECURECIPHER_MIDDLEWARE_GATEWAY_URL = 'https://qf8f50qr-8000.eun1.devtunnels.ms/api/secure/gateway/';
     if (!SECURECIPHER_MIDDLEWARE_GATEWAY_URL) {
         throw new Error('[Config] SECURECIPHER_MIDDLEWARE_GATEWAY_URL is not defined in environment variables');
     }
