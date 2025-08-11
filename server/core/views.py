@@ -96,6 +96,15 @@ class RegisterView(APIView):
 class TransferView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    def get_client_ip(self, request):
+        """Extract client IP address from request headers"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+
     def post(self, request):
         print("DEBUG: [TransferView.post] Received request data:", request.data)
         transaction_data, session_key, error = CryptoUtils.crypto_preprocess(request.data)
@@ -138,7 +147,12 @@ class TransferView(APIView):
                 recipient.save()
 
                 print("DEBUG: [TransferView.post] Creating Transaction records")
-                # Create more detailed transaction records
+                
+                # Extract client metadata for security tracking
+                client_ip = self.get_client_ip(request)
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+                
+                # Create comprehensive transaction records with all fields
                 debit_txn = Transaction.objects.create(
                     account=sender, 
                     amount=-amount, 
@@ -146,11 +160,11 @@ class TransferView(APIView):
                     status='COMPLETED',
                     balance_before=sender.balance + amount,
                     balance_after=sender.balance,
-                    description=f"Transfer to {recipient.account_number}",
+                    description=transaction_data.get('description', f"Transfer to {recipient.account_number}"),
                     recipient_account_number=recipient.account_number,
                     recipient_name=f"{recipient.first_name} {recipient.last_name}",
                     sender_name=f"{sender.first_name} {sender.last_name}",
-                    sender_account_number=sender.account_number
+                    sender_account_number=sender.account_number,
                 )
                 
                 credit_txn = Transaction.objects.create(
@@ -160,11 +174,12 @@ class TransferView(APIView):
                     status='COMPLETED',
                     balance_before=recipient.balance - amount,
                     balance_after=recipient.balance,
-                    description=f"Transfer from {sender.account_number}",
+                    description=transaction_data.get('description', f"Transfer from {sender.account_number}"),
                     recipient_account_number=recipient.account_number,
                     recipient_name=f"{recipient.first_name} {recipient.last_name}",
                     sender_name=f"{sender.first_name} {sender.last_name}",
-                    sender_account_number=sender.account_number
+                    sender_account_number=sender.account_number,
+                  
                 )
 
             print("DEBUG: [TransferView.post] Transfer successful")
@@ -237,7 +252,7 @@ class ValidateAccountView(APIView):
 
 # Utility function for encrypted + signed responses
 def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
-    
+
     print(f"DEBUG: [encrypted_response] session_key={session_key}, payload={payload}")
     try:
         # Convert Django ErrorDetail objects to standard format for consistent JSON serialization

@@ -159,6 +159,17 @@ export default function Transactions() {
                       <p className="text-sm text-gray-600">
                         {transaction.description || 'No description'}
                       </p>
+                      {/* Show sender name for credit transactions, recipient name for debit transactions */}
+                      {transaction.transaction_type.toLowerCase() === 'credit' && transaction.sender_name && (
+                        <p className="text-sm text-gray-700 font-medium">
+                          From: {transaction.sender_name}
+                        </p>
+                      )}
+                      {transaction.transaction_type.toLowerCase() === 'debit' && transaction.recipient_name && (
+                        <p className="text-sm text-gray-700 font-medium">
+                          To: {transaction.recipient_name}
+                        </p>
+                      )}
                       <div className="flex items-center text-xs text-gray-500 mt-1">
                         <Calendar className="h-3 w-3 mr-1" />
                         {formatDate(transaction.created_at)}
@@ -186,11 +197,18 @@ export default function Transactions() {
                   </div>
                 </div>
 
-                {transaction.recipient_account && (
+                {(transaction.sender_account_number || transaction.recipient_account_number) && (
                   <div className="mt-3 pl-14">
                     <p className="text-sm text-gray-600">
-                      {transaction.transaction_type.toLowerCase() === 'credit' ? 'From: ' : 'To: '}
-                      <span className="font-medium">{transaction.recipient_account}</span>
+                      {transaction.transaction_type.toLowerCase() === 'credit' ? (
+                        <>
+                          From Account: <span className="font-medium">{transaction.sender_account_number}</span>
+                        </>
+                      ) : (
+                        <>
+                          To Account: <span className="font-medium">{transaction.recipient_account_number}</span>
+                        </>
+                      )}
                     </p>
                   </div>
                 )}

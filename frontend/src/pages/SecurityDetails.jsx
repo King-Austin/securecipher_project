@@ -132,66 +132,46 @@ export default function SecurityDetails() {
 
   const handleEmergencyLogout = async () => {
     const confirmed = confirm(
-      '⚠️ CRITICAL WARNING ⚠️\n\n' +
-      'This action will PERMANENTLY DELETE all cryptographic material from this device:\n\n' +
-      '• Your encrypted private key will be wiped from IndexedDB\n' +
-      '• All user profile data will be cleared from localStorage\n' +
-      '• All SecureCipher session data will be removed\n' +
-      '• Your PIN and security settings will be erased\n\n' +
-      '🔴 THIS ACTION IS IRREVERSIBLE 🔴\n\n' +
-      'Once you logout, you will need to re-register with SecureCipher and generate new cryptographic keys. ' +
-      'Your old private key will be permanently lost and cannot be recovered.\n\n' +
-      'Are you absolutely sure you want to proceed with emergency logout?'
+      '⚠️ EMERGENCY LOGOUT WARNING ⚠️\n\n' +
+      'This will permanently delete:\n' +
+      '• Your encrypted private key\n' +
+      '• All profile data\n' +
+      '• Session information\n\n' +
+      '🔴 THIS CANNOT BE UNDONE 🔴\n\n' +
+      'You will need to re-register completely.\n\n' +
+      'Continue with emergency logout?'
     );
 
     if (confirmed) {
-      const secondConfirm = confirm(
-        'FINAL CONFIRMATION\n\n' +
-        'You are about to permanently destroy all cryptographic keys and data on this device. ' +
-        'This cannot be undone.\n\n' +
-        'Click OK to proceed with complete data wipe and logout.'
-      );
-
-      if (secondConfirm) {
+      try {
+        // Clear all data
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear IndexedDB
         try {
-          // Clear all localStorage data
-          localStorage.clear();
-          
-          // Clear sessionStorage as well
-          sessionStorage.clear();
-          
-          // Clear IndexedDB data (encrypted private key)
-          try {
-            await SecureKeyManager.clearAllKeyData();
-          } catch (error) {
-            console.warn('Error clearing IndexedDB:', error);
-            // Continue with logout even if IndexedDB clearing fails
-          }
-          
-
-          
-          alert(
-            '✅ LOGOUT COMPLETE ✅\n\n' +
-            'All cryptographic material and user data has been permanently wiped from this device.\n\n' +
-            'You will now be redirected to the registration page.'
-          );
-          
-          // Redirect and reload to reset auth state
-          window.location.href = '/register';
-          
+          await SecureKeyManager.clearAllKeyData();
         } catch (error) {
-          console.error('Error during emergency logout:', error);
-          alert(
-            '⚠️ LOGOUT WARNING ⚠️\n\n' +
-            'There was an error during the logout process. Some data may not have been completely cleared.\n\n' +
-            'For complete security, please:\n' +
-            '1. Clear your browser data manually\n' +
-            '2. Close all browser windows\n' +
-            '3. Restart your browser\n\n' +
-            'You will still be redirected to the registration page.'
-          );
-          navigate('/register', { replace: true });
+          console.warn('Error clearing IndexedDB:', error);
         }
+
+        alert(
+          '✅ LOGOUT COMPLETE\n\n' +
+          'All data has been permanently wiped.\n' +
+          'Redirecting to registration...'
+        );
+        
+        // Redirect to registration
+        window.location.href = '/register';
+        
+      } catch (error) {
+        console.error('Error during emergency logout:', error);
+        alert(
+          '⚠️ LOGOUT WARNING\n\n' +
+          'Some data may not have been cleared.\n' +
+          'Please clear browser data manually and restart browser.'
+        );
+        navigate('/register', { replace: true });
       }
     }
   };
