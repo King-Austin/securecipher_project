@@ -95,8 +95,11 @@ export default function RecentTransactions() {
                     {txn.reference_number && (
                       <p className="text-xs text-gray-400">Ref: {txn.reference_number}</p>
                     )}
-                    {txn.account_number && (
-                      <p className="text-xs text-gray-400">Account: {txn.account_number}</p>
+                    {transactionInfo.isCredit && txn.recipient_account_number && (
+                      <p className="text-xs text-gray-400">Recipient Account: {txn.recipient_account_number}</p>
+                    )}
+                    {!transactionInfo.isCredit && txn.sender_account_number && (
+                      <p className="text-xs text-gray-400">Sender Account: {txn.sender_account_number}</p>
                     )}
                   </div>
                 </div>
