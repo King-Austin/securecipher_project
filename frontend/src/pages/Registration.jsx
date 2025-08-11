@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { secureRegistrationRequest } from '../services/secureApi';
 
-const steps = ['Personal Information', 'Verification', 'Account Security'];
+const steps = ['BIO', 'VERIFY', 'SECURITY'];
 
 export default function Registration() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -382,12 +382,12 @@ export default function Registration() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                    Creating Account...
+                    Processing...
                   </>
                 ) : (
                   <>
                     <Shield className="h-5 w-5 mr-2" />
-                    Complete Registration
+                    Register
                   </>
                 )}
               </button>
@@ -467,8 +467,8 @@ function Step1({ formData, handleChange, errors, inputRef, firstErrorRef }) {
 function Step2({ formData, handleChange, errors, inputRef, firstErrorRef }) {
   return (
     <div className="space-y-6">
-      <InputField name="bvn" label="Bank Verification Number (BVN)" value={formData.bvn} onChange={handleChange} error={errors.bvn} maxLength={11} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
-      <InputField name="nin" label="National Identification Number (NIN)" value={formData.nin} onChange={handleChange} error={errors.nin} maxLength={11} />
+      <InputField name="bvn" label="Bank Verification Number (BVN)" value={formData.bvn} onChange={handleChange} error={errors.bvn} inputMode="numeric" maxLength={11} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
+      <InputField name="nin" label="National Identification Number (NIN)" value={formData.nin} onChange={handleChange} error={errors.nin} inputMode="numeric" maxLength={11} />
       <InputField name="date_of_birth" type="date" label="Date of Birth" value={formData.date_of_birth} onChange={handleChange} error={errors.date_of_birth} />
       <InputField name="address" label="Residential Address" value={formData.address} onChange={handleChange} error={errors.address} />
       <InputField name="occupation" label="Occupation" value={formData.occupation} onChange={handleChange} error={errors.occupation} />
@@ -481,7 +481,7 @@ function Step3({ formData, handleChange, errors, inputRef, firstErrorRef }) {
     <div className="space-y-6">
       <InputField name="username" label="Username" value={formData.username} onChange={handleChange} error={errors.username} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
       <InputField name="pin" type="password" label="6-Digit Security PIN" placeholder="your pin e.g 328712" inputMode="numeric" pattern="[0-9]{6}" value={formData.pin} onChange={handleChange} error={errors.pin} maxLength={6} />
-      <InputField name="confirm_pin" type="password" pattern="[0-9]{6}" label="Confirm PIN" value={formData.confirm_pin} onChange={handleChange} error={errors.confirm_pin} placeholder='repeat the pin' maxLength={6} />
+      <InputField name="confirm_pin" type="password" pattern="[0-9]{6}" inputMode="numeric" label="Confirm PIN" value={formData.confirm_pin} onChange={handleChange} error={errors.confirm_pin} placeholder='repeat the pin' maxLength={6} />
       <div className="mt-2 p-3 bg-green-50 rounded text-green-700 text-sm">
         <strong>What is your PIN used for?</strong>
         <ul className="list-disc ml-5 mt-1">
