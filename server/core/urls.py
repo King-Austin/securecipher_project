@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    RegisterView, PublicKeyView, ValidateAccountView, TransferView
+    RegisterView, PublicKeyView, ValidateAccountView, TransferView, ProfileView
 )
 
 urlpatterns = [
@@ -9,4 +9,5 @@ urlpatterns = [
 
     path('validate_account/', ValidateAccountView.as_view(), name='validate_account'),
     path('transfer/', TransferView.as_view(), name='transfer'),
+    path('profile/', ProfileView.as_view(), name='profile'),
 ]

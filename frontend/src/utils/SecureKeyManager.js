@@ -335,17 +335,11 @@ export async function decryptPrivateKey(encrypted, pin, salt, iv) {
     }
 }
 
-// Fetch server public key from backend
-const SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL = 'https://qf8f50qr-8000.eun1.devtunnels.ms/api/middleware/public-key/';
-if (!SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL) {
-    throw new Error('SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL is not defined in environment variables');
-}
-if (!SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL.startsWith('http')) {
-    throw new Error('SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL must start with http:// or https://');
-}
+// Import API configuration
+import { API_ENDPOINTS } from '../config/apiConfig';
 
 export async function getServerPublicKey() {
-    const res = await fetch(SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL);
+    const res = await fetch(API_ENDPOINTS.MIDDLEWARE_PUBLIC_KEY);
     const pem = await res.json();
     return await importServerPublicKey(pem.public_key);
 }

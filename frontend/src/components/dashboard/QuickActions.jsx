@@ -1,7 +1,7 @@
-import { Send, CreditCard, Smartphone, Download } from 'lucide-react';
+import { Send, CreditCard, History, Shield, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-export default function QuickActions() {
+export default function QuickActions({ onRefreshClick }) {
   const actions = [
     { 
       icon: <Send className="h-5 w-5" />, 
@@ -16,22 +16,32 @@ export default function QuickActions() {
       link: '/cards' 
     },
     { 
-      icon: <Smartphone className="h-5 w-5" />, 
-      label: 'Airtime', 
-      color: 'bg-yellow-100 text-yellow-600', 
-      link: '/airtime' 
+      icon: <History className="h-5 w-5" />, 
+      label: 'Transactions', 
+      color: 'bg-green-100 text-green-600', 
+      link: '/transactions' 
     },
     { 
-      icon: <Download className="h-5 w-5" />, 
-      label: 'Download', 
-      color: 'bg-green-100 text-green-600', 
-      link: '/statements' 
+      icon: <Shield className="h-5 w-5" />, 
+      label: 'Security', 
+      color: 'bg-orange-100 text-orange-600', 
+      link: '/security-details' 
     },
   ];
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-lg font-medium text-gray-800 mb-4">Quick Actions</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-medium text-gray-800">Quick Actions</h2>
+        <button
+          onClick={onRefreshClick}
+          className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200 transition-colors"
+          title="Refresh dashboard data"
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Refresh
+        </button>
+      </div>
       
       <div className="grid grid-cols-2 gap-3">
         {actions.map((action, index) => (
