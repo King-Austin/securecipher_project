@@ -80,20 +80,41 @@ export default function SendMoney() {
         pin: storedPin
       });
       
+      // Check if response has an error (including 404 responses)
+      if (response && response.error) {
+        if (response.error === 'Account not found.' || response.error.includes('not found')) {
+          setError('Account not found. Please check the account number and try again.');
+        } else {
+          setError(response.error);
+        }
+        return;
+      }
+      
+      // Check for user field in successful response
       if (response && response.user) {
         setRecipientInfo(response.user);
         setError('');
         setStep(2);
         console.log('Account validation successful:', response.user);
-      } 
+      } else {
+        setError('Unable to validate account. Please check the account number and try again.');
+      }
     } catch (err) {
       console.error('Account validation error:', err);
+      console.log('Error object structure:', err);
       let errorMessage = 'An error occurred while validating the account. Please try again.';
       
-      if (err.message.includes('Invalid PIN')) {
+      // Handle different error types seamlessly
+      if (err.status === 404 || err.error === 'Account not found.' || (err.error && err.error.includes('not found'))) {
+        errorMessage = 'Account not found. Please check the account number and try again.';
+      } else if (err.error) {
+        errorMessage = err.error;
+      } else if (err.message && err.message.includes('Invalid PIN')) {
         errorMessage = 'Invalid PIN. Please enter the correct PIN.';
-      } else if (err.message.includes('Account not found')) {
-        errorMessage = 'Recipient account not found. Please check the account number.';
+      } else if (err.message && err.message.includes('404')) {
+        errorMessage = 'Account not found. Please check the account number and try again.';
+      } else if (err.message) {
+        errorMessage = err.message;
       }
       
       setError(errorMessage);
@@ -188,18 +209,29 @@ export default function SendMoney() {
           localStorage.setItem('userTransactions', JSON.stringify(response.transactions));
         }
       } else {
-        throw new Error(response.error || 'Transaction failed. Please try again.');
+        // Handle response errors
+        if (response && response.error) {
+          throw new Error(response.error);
+        } else {
+          throw new Error('Transaction failed. Please try again.');
+        }
       }
     } catch (err) {
       console.error('Transfer Error:', err);
+      console.log('Transfer error object structure:', err);
       
       let errorMessage = 'An unexpected error occurred. Please try again.';
       
-      if (err.message.includes('Insufficient funds')) {
-        errorMessage = err.message;
-      } else if (err.message.includes('not found')) {
+      // Handle different error types seamlessly
+      if (err.status === 404 || err.error === 'Account not found.' || (err.error && err.error.includes('not found'))) {
         errorMessage = 'Recipient account not found. Please check the account number.';
-      } else if (err.message.includes('PIN') || err.message.includes('key')) {
+      } else if (err.error) {
+        errorMessage = err.error;
+      } else if (err.message && err.message.includes('Insufficient funds')) {
+        errorMessage = err.message;
+      } else if (err.message && err.message.includes('404')) {
+        errorMessage = 'Recipient account not found. Please check the account number.';
+      } else if (err.message && (err.message.includes('PIN') || err.message.includes('key'))) {
         errorMessage = 'Invalid PIN or authentication failed. Please try again.';
       } else if (err.message) {
         errorMessage = err.message;

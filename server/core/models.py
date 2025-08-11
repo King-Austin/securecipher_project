@@ -46,6 +46,30 @@ class User(AbstractUser):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        """Override save to automatically generate hashes for NIN and BVN"""
+        # Generate NIN hash if NIN is provided
+        if self.nin and not self.nin_hash:
+            self.nin_hash = hashlib.sha256(self.nin.encode()).hexdigest()
+        
+        # Generate BVN hash if BVN is provided
+        if self.bvn and not self.bvn_hash:
+            self.bvn_hash = hashlib.sha256(self.bvn.encode()).hexdigest()
+            
+        super().save(*args, **kwargs)
+
+    def verify_nin(self, nin_to_verify):
+        """Verify if provided NIN matches the stored encrypted NIN"""
+        if not nin_to_verify or not self.nin_hash:
+            return False
+        return self.nin_hash == hashlib.sha256(nin_to_verify.encode()).hexdigest()
+
+    def verify_bvn(self, bvn_to_verify):
+        """Verify if provided BVN matches the stored encrypted BVN"""
+        if not bvn_to_verify or not self.bvn_hash:
+            return False
+        return self.bvn_hash == hashlib.sha256(bvn_to_verify.encode()).hexdigest()
+
 
 
     def __str__(self):

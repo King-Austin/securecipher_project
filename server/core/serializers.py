@@ -5,19 +5,21 @@ from .models import User, Transaction
 from decimal import Decimal
 import hashlib
 
+
 class TransactionSerializer(serializers.ModelSerializer):
     """
     Serializer for Transaction model.
     Provides human-readable representations for category and transaction type.
     """
-    category = serializers.StringRelatedField()
-    transaction_type = serializers.CharField(source='get_transaction_type_display')
-
+    
     class Meta:
         model = Transaction
         fields = (
             'id', 'transaction_type', 'amount', 'description', 'status',
-            'reference_number', 'created_at', 'balance_after', 'category'
+            'reference_number', 'created_at', 'balance_before', 'balance_after',
+            'recipient_account_number', 'recipient_name', 
+            'sender_account_number', 'sender_name',
+            'ip_address', 'user_agent', 'location'
         )
 
 
@@ -49,15 +51,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 print(f"[UserRegistrationSerializer] Duplicate found for {field}: {value}")
                 raise serializers.ValidationError({field: f"This {field.replace('_', ' ')} is already registered."})
 
+        # Handle NIN and BVN validation with proper hashing
         nin = attrs.get('nin')
         bvn = attrs.get('bvn')
 
-        if nin and User.objects.filter(nin_hash=hashlib.sha256(nin.encode()).hexdigest()).exists():
-            raise serializers.ValidationError({'nin': 'This NIN is already registered.'})
+        if nin:
+            nin_hash = hashlib.sha256(nin.encode()).hexdigest()
+            if User.objects.filter(nin_hash=nin_hash).exists():
+                raise serializers.ValidationError({'nin': 'This NIN is already registered.'})
+            # Store the hash for later use in create method
+            attrs['_nin_hash'] = nin_hash
 
-        if bvn and User.objects.filter(bvn_hash=hashlib.sha256(bvn.encode()).hexdigest()).exists():
-            raise serializers.ValidationError({'bvn': 'This BVN is already registered.'})
-
+        if bvn:
+            bvn_hash = hashlib.sha256(bvn.encode()).hexdigest()
+            if User.objects.filter(bvn_hash=bvn_hash).exists():
+                raise serializers.ValidationError({'bvn': 'This BVN is already registered.'})
+            # Store the hash for later use in create method
+            attrs['_bvn_hash'] = bvn_hash
 
         print("[UserRegistrationSerializer] Validation passed for all unique fields.")
         return attrs
@@ -83,6 +93,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         print("[UserRegistrationSerializer] Public key hash generated:", pubkey_hash)
         validated_data['password'] = pubkey_hash
 
+        # Extract and set NIN/BVN hashes if present
+        nin_hash = validated_data.pop('_nin_hash', None)
+        bvn_hash = validated_data.pop('_bvn_hash', None)
+        
+        if nin_hash:
+            validated_data['nin_hash'] = nin_hash
+        if bvn_hash:
+            validated_data['bvn_hash'] = bvn_hash
+
         print("[UserRegistrationSerializer] Generating account number...")
         validated_data['account_number'] = self.generate_account_number(validated_data)
         print("[UserRegistrationSerializer] Account number set:", validated_data['account_number'])
@@ -98,8 +117,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 user.save()
                 print("[UserRegistrationSerializer] User password set and user saved.")
 
-                # Add welcome bonus transaction
-                print("[UserRegistrationSerializer] Creating welcome bonus transaction...")
+                # Add welcome bonus transaction - System Credit (no real account debited)
+                print("[UserRegistrationSerializer] Creating welcome bonus system credit transaction...")
                 welcome_bonus = Decimal('50000.00')
                 Transaction.objects.create(
                     account=User.objects.get(id=user.id),
@@ -107,12 +126,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     amount=welcome_bonus,
                     balance_before=Decimal('0.00'),
                     balance_after=welcome_bonus,
-                    description='Welcome Bonus',
+                    description='Welcome to SecureCipher - Account activation bonus',
                     status='COMPLETED',
-                    sender_name='SecureCipher Bank',
-                    sender_account_number='0000000000'
+                    recipient_account_number=user.account_number,
+                    recipient_name=f"{user.first_name} {user.last_name}",
+                    sender_account_number='SYS000000',  # System account
+                    sender_name='SecureCipherTreasury',
                 )
-                print("[UserRegistrationSerializer] Welcome bonus transaction created.")
+                print("[UserRegistrationSerializer] Welcome bonus system credit transaction created.")
                 
                 # Update user's balance to reflect the welcome bonus
                 user.balance = welcome_bonus
@@ -132,7 +153,7 @@ class UserSerializer(serializers.ModelSerializer):
         UserSerializer(user, fields=('account_number', 'first_name', 'last_name'))
     
     Note: NIN and BVN fields are automatically encrypted/decrypted 
-    by django-cryptography when accessed through the model properties.
+    by django-cryptography. Validation is done through hash comparison.
     """
 
     def __init__(self, *args, **kwargs):
@@ -151,9 +172,22 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name',
             'public_key', 'phone_number', 'date_of_birth', 'address',
-            'occupation', 'nin', 'bvn', 'is_verified', 'account_number', 'balance', 'account_type', 'status', 'is_primary', 'created_at', 'updated_at'
+            'occupation', 'nin', 'bvn', 'is_verified', 'account_number', 
+            'balance', 'account_type', 'status', 'is_primary', 'created_at', 'updated_at'
         )
-        read_only_fields = fields
+        read_only_fields = (
+            'id', 'account_number', 'created_at', 'updated_at'
+        )
+        # Exclude NIN and BVN from API responses for security
+        exclude_from_api = ('nin', 'bvn')
+
+    def to_representation(self, instance):
+        """Override to exclude sensitive fields from API responses"""
+        data = super().to_representation(instance)
+        # Remove NIN and BVN from API responses for security
+        data.pop('nin', None)
+        data.pop('bvn', None)
+        return data
 
 class TransferSerializer(serializers.Serializer):
     destination_account_number = serializers.CharField(max_length=20)

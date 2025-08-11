@@ -43,8 +43,7 @@ export default function RecentTransactions() {
   // Determine transaction type and color
   const getTransactionInfo = (txn) => {
     const amount = parseFloat(txn.amount) || 0;
-    const isCredit = amount > 0 || txn.transaction_type === 'CREDIT';
-    
+    const isCredit = amount > 0 && txn.transaction_type.toLowerCase() === 'credit';
     return {
       isCredit,
       displayType: isCredit ? 'Credit' : 'Debit',
@@ -79,17 +78,25 @@ export default function RecentTransactions() {
               <li key={txn.id} className="flex items-center justify-between p-6 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center">
                   {transactionInfo.isCredit ? (
-                    <ArrowDownLeft className={`h-5 w-5 ${transactionInfo.iconColorClass} mr-3`} />
+                    <ArrowDownLeft className={`h-5 w-5 ${transactionInfo.colorClass} mr-3`} />
                   ) : (
-                    <ArrowUpRight className={`h-5 w-5 ${transactionInfo.iconColorClass} mr-3`} />
+                    <ArrowUpRight className={`h-5 w-5 ${transactionInfo.colorClass} mr-3`} />
                   )}
                   <div>
                     <p className="text-sm font-medium text-gray-800">
                       {txn.description || `${transactionInfo.displayType} Transaction`}
                     </p>
                     <p className="text-xs text-gray-500">{formatDate(txn.created_at)}</p>
+                    {transactionInfo.isCredit ? (
+                      <p className="text-xs text-gray-400">Sender: {txn.sender_name || 'N/A'}</p>
+                    ) : (
+                      <p className="text-xs text-gray-400">Recipient: {txn.recipient_name || 'N/A'}</p>
+                    )}
                     {txn.reference_number && (
                       <p className="text-xs text-gray-400">Ref: {txn.reference_number}</p>
+                    )}
+                    {txn.account_number && (
+                      <p className="text-xs text-gray-400">Account: {txn.account_number}</p>
                     )}
                   </div>
                 </div>
