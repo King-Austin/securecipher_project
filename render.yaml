@@ -1,0 +1,32 @@
+# Render service configuration for SecureCipher project
+# Defines frontend static site, middleware and backend web services
+
+services:
+  # Frontend: Vite React static site
+  - type: static_site
+    name: securecipher-frontend
+    path: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    # Load environment variables from frontend/.env for VITE_ prefix variables
+    envFile: .env
+
+  # Middleware: Django application
+  - type: web_service
+    name: securecipher-middleware
+    env: python
+    path: middleware
+    buildCommand: bash setup.sh
+    startCommand: gunicorn securecipher.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+    # Load environment variables from middleware/.env
+    envFile: .env
+
+  # Backend (Banking API): Django application
+  - type: web_service
+    name: securecipher-backend
+    env: python
+    path: server
+    buildCommand: bash setup.sh
+    startCommand: gunicorn bankingapi.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+    # Load environment variables from server/.env
+    envFile: .env
