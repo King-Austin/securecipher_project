@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Setup and run SecureCipher Middleware with Gunicorn
+# Setup SecureCipher Middleware on Render
 
-# Exit on error
+# Exit immediately on error
 set -e
 
-# Install dependencies and Gunicorn
-pip install -r requirements.txt gunicorn
+# Install dependencies (Render already does `pip install -r requirements.txt` if in Build Command)
+pip install --upgrade pip
+pip install -r requirements.txt
 
 # Apply migrations
 python manage.py migrate
@@ -13,8 +14,11 @@ python manage.py migrate
 # Collect static files
 python manage.py collectstatic --noinput
 
-# (Optional) Create superuser if not exists
-python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@admin.com', 'securecipher')"
-
-# Start Gunicorn
-gunicorn securecipher.wsgi:application
+# Create superuser if not exists
+python manage.py shell -c "
+from django.contrib.auth import get_user_model;
+User = get_user_model();
+User.objects.filter(username='admin').exists() or User.objects.create_superuser(
+    'admin', 'admin@admin.com', 'securecipher'
+)
+"
