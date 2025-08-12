@@ -2,7 +2,7 @@
 // Centralized API endpoints configuration
 
 // Base URL for middleware API - change this for different environments
-export const MIDDLEWARE_BASE_URL = 'http://127.0.0.1:8000';
+export const MIDDLEWARE_BASE_URL = 'https://securecipher-middleware.onrender.com';
 
 // API Endpoints
 export const API_ENDPOINTS = {
