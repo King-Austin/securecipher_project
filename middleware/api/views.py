@@ -12,6 +12,7 @@ from functools import wraps
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.conf import settings
+from django.shortcuts import render
 
 from api.models import MiddlewareKey, UsedNonce, TransactionMetadata
 from scripts import generate_keypair
@@ -324,6 +325,10 @@ def process_downstream_response(response_data: Dict[str, Any], downstream_sessio
         print(f"ERROR: Failed to process downstream response: {e}")
         return {"error": f"Response processing failed: {str(e)}"}, 500
 
+
+def index_view(request):
+    """Render the SecureCipher middleware landing page"""
+    return render(request, 'index.html')
 
 
 @api_view(["GET"])

@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, serializers
 from django.db import transaction
+from django.shortcuts import render
 from .models import User, Transaction
 from .serializers import (
     UserRegistrationSerializer, UserSerializer,
@@ -9,6 +10,11 @@ from .serializers import (
 )
 from .crypto_utils import CryptoUtils
 import json
+
+
+def index_view(request):
+    """Render the SecureCipher Banking API landing page"""
+    return render(request, 'index.html')
 
 
 def authenticate_user_by_public_key(transaction_data):

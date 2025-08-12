@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureCipher Banking API</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3d7c47 100%);
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+        }
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .navbar-brand, .nav-link {
+            color: white !important;
+        }
+        .nav-link:hover {
+            color: #00d4ff !important;
+        }
+        .hero-section {
+            padding: 120px 0;
+            text-align: center;
+            color: white;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 40px 30px;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .glow-btn {
+            background: linear-gradient(45deg, #00c851, #00d4ff);
+            border: none;
+            padding: 15px 35px;
+            border-radius: 50px;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 200, 81, 0.3);
+            text-decoration: none;
+            display: inline-block;
+        }
+        .glow-btn:hover {
+            box-shadow: 0 0 30px rgba(0, 200, 81, 0.6);
+            transform: scale(1.05);
+            color: white;
+        }
+        .api-status {
+            background: rgba(0, 200, 81, 0.2);
+            border: 1px solid rgba(0, 200, 81, 0.5);
+            border-radius: 50px;
+            padding: 10px 20px;
+            display: inline-block;
+            margin-bottom: 30px;
+        }
+        .footer {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px 0;
+            margin-top: 80px;
+        }
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            color: white;
+            margin: 10px 0;
+        }
+        .banking-icon {
+            color: #00d4ff;
+            margin-bottom: 20px;
+        }
+        .brand-link {
+            color: #00d4ff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .brand-link:hover {
+            color: #00c851;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-university me-2"></i>
+                SecureCipher Banking API
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/admin">
+                    <i class="fas fa-user-shield me-1"></i>
+                    Admin Portal
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="hero-section">
+            <div class="container">
+                <div class="api-status">
+                    <i class="fas fa-check-circle me-2"></i>
+                    API Status: Online & Secure
+                </div>
+                <h1 class="display-2 mb-4">
+                    <i class="fas fa-university banking-icon"></i>
+                    <br>SecureCipher Banking API
+                </h1>
+                <p class="lead mb-5">Enterprise-grade banking infrastructure with military-level security</p>
+                <a href="#features" class="btn glow-btn btn-lg me-3">
+                    <i class="fas fa-rocket me-2"></i>
+                    Explore Features
+                </a>
+                <a href="/admin" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    Access Portal
+                </a>
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="container mb-5">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <i class="fas fa-shield-alt fa-2x mb-3" style="color: #00c851;"></i>
+                        <h4>99.9%</h4>
+                        <p>Security Rating</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <i class="fas fa-clock fa-2x mb-3" style="color: #00d4ff;"></i>
+                        <h4>&lt; 50ms</h4>
+                        <p>Response Time</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <i class="fas fa-database fa-2x mb-3" style="color: #ffc107;"></i>
+                        <h4>24/7</h4>
+                        <p>Uptime</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <i class="fas fa-users fa-2x mb-3" style="color: #e91e63;"></i>
+                        <h4>1M+</h4>
+                        <p>Transactions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="container mt-5" id="features">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-lock fa-4x banking-icon"></i>
+                        <h4 class="mt-3">End-to-End Encryption</h4>
+                        <p>Every transaction protected with AES-256 encryption and RSA key exchange for maximum security</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-money-bill-transfer fa-4x banking-icon"></i>
+                        <h4 class="mt-3">Instant Transfers</h4>
+                        <p>Real-time money transfers with instant validation and comprehensive transaction logging</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-chart-line fa-4x banking-icon"></i>
+                        <h4 class="mt-3">Analytics Dashboard</h4>
+                        <p>Comprehensive transaction analytics with real-time monitoring and fraud detection</p>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-user-check fa-4x banking-icon"></i>
+                        <h4 class="mt-3">KYC Compliance</h4>
+                        <p>Built-in Know Your Customer verification with NIN and BVN validation systems</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-mobile-alt fa-4x banking-icon"></i>
+                        <h4 class="mt-3">Mobile Ready</h4>
+                        <p>RESTful API designed for seamless mobile and web application integration</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card text-center text-white">
+                        <i class="fas fa-history fa-4x banking-icon"></i>
+                        <h4 class="mt-3">Transaction History</h4>
+                        <p>Complete audit trail with detailed transaction logs and reconciliation reports</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="container text-center mt-5 pb-5">
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="text-white mb-4">Ready to Transform Your Banking Infrastructure?</h3>
+                    <a href="/admin" class="btn glow-btn me-3">
+                        <i class="fas fa-rocket me-2"></i>
+                        Start Banking
+                    </a>
+                    <a href="/api/docs/" class="btn btn-outline-light" target="_blank">
+                        <i class="fas fa-book me-2"></i>
+                        API Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-white mb-3">
+                        <i class="fas fa-university me-2"></i>
+                        SecureCipher Banking API
+                    </h5>
+                    <p class="text-light">
+                        Enterprise-grade banking infrastructure providing secure, scalable, and compliant financial services.
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <h6 class="text-white mb-3">Quick Links</h6>
+                    <div class="mb-3">
+                        <a href="/admin" class="text-light me-3 text-decoration-none">
+                            <i class="fas fa-user-shield me-1"></i>
+                            Admin
+                        </a>
+                        <a href="/api/docs/" class="text-light me-3 text-decoration-none" target="_blank">
+                            <i class="fas fa-code me-1"></i>
+                            API Docs
+                        </a>
+                        <a href="#" class="text-light text-decoration-none">
+                            <i class="fas fa-headset me-1"></i>
+                            Support
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4" style="border-color: rgba(255, 255, 255, 0.2);">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="text-light mb-0">
+                        &copy; 2025 SecureCipher Banking API. All rights reserved.
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-light mb-0">
+                        Powered by 
+                        <a href="https://nworahsoft.tech" target="_blank" class="brand-link">
+                            <i class="fas fa-bolt me-1"></i>
+                            Nworahsoft
+                        </a> | Nigeria
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
