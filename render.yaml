@@ -1,58 +1,51 @@
-# Render service configuration for SecureCipher project
-# Defines frontend static site, middleware and backend web services
-
+# Exported from Render on 2025-08-12T21:56:43Z
 services:
-  # Frontend: Vite React static site
-  - type: web
-    name: securecipher-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: VITE_SECURECIPHER_MIDDLEWARE_URL
-        value: http://localhost:8000
-      - key: VITE_SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL
-        value: http://localhost:8000/api/middleware/public-key/
-      - key: VITE_SECURECIPHER_MIDDLEWARE_GATEWAY_URL
-        value: http://localhost:8000/api/secure/gateway/
-      - key: VITE_DEMO_MODE
-        value: true
-      - key: VITE_DEMO_CURRENCY
-        value: NGN
-      - key: VITE_DEMO_WELCOME_BONUS
-        value: 50000
-      - key: VITE_DEBUG
-        value: true
-
-  # Middleware: Django application
-  - type: web
-    name: securecipher-middleware
-    runtime: python
-    rootDir: middleware
-    buildCommand: bash setup.sh
-    startCommand: gunicorn securecipher.wsgi:application --bind 0.0.0.0:$PORT --workers 3
-    envVars:
-      - key: DATABASE_URL
-        value: postgresql://securecipher_owner:npg_wCZYVzX3xK8g@ep-long-hill-ae3nmnnx-pooler.c-2.us-east-2.aws.neon.tech/server_db?sslmode=require&channel_binding=require
-      - key: SECRET_KEY
-        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc
-      - key: DEBUG
-        value: False
-
-  # Backend (Banking API): Django application
-  - type: web
-    name: securecipher-backend
-    runtime: python
-    rootDir: server
-    buildCommand: bash setup.sh
-    startCommand: gunicorn bankingapi.wsgi:application --bind 0.0.0.0:$PORT --workers 3
-    envVars:
-      - key: DATABASE_URL
-        value: postgresql://securecipher_owner:npg_wCZYVzX3xK8g@ep-long-hill-ae3nmnnx-pooler.c-2.us-east-2.aws.neon.tech/server_db?sslmode=require&channel_binding=require
-      - key: SECRET_KEY
-        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc
-      - key: FIELD_ENCRYPTION_KEY
-        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc=
-      - key: DEBUG
-        value: False
+- type: web
+  name: securecipher_middleware
+  runtime: python
+  repo: https://github.com/King-Austin/securecipher_project
+  plan: free
+  region: oregon
+  buildCommand: bash setup.sh
+  startCommand: gunicorn securecipher.wsgi:application --workers 3 --bind 0.0.0.0:$PORT
+  autoDeployTrigger: commit
+  rootDir: ./middleware
+- type: web
+  name: securecipher_server
+  runtime: python
+  repo: https://github.com/King-Austin/securecipher_project
+  plan: free
+  envVars:
+  - key: DEBUG
+    sync: false
+  - key: FIELD_ENCRYPTION_KEY
+    sync: false
+  - key: SECRET_KEY
+    sync: false
+  - key: DATABASE_URL
+    sync: false
+  region: oregon
+  buildCommand: bash setup.sh
+  startCommand: gunicorn bankingapi.wsgi:application --workers 3
+  autoDeployTrigger: commit
+  rootDir: ./server
+- type: web
+  name: Securecipherbank
+  runtime: static
+  repo: https://github.com/King-Austin/securecipher_project
+  buildCommand: npm install; npm run build
+  staticPublishPath: dist
+  routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html
+  autoDeployTrigger: commit
+  rootDir: ./frontend
+version: "1"
+databases:
+- name: securecipher_db
+  user: securecipher_user
+  password: securecipher_password
+  host: securecipher_db_host
+  port: 5432
+  dbname: securecipher_db
