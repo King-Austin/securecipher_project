@@ -1,30 +1,58 @@
 # Render service configuration for SecureCipher project
 # Defines frontend static site, middleware and backend web services
 
-static_sites:
+services:
   # Frontend: Vite React static site
-  - name: securecipher-frontend
-    path: frontend
+  - type: web
+    name: securecipher-frontend
+    runtime: static
+    rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
-  # Load environment variables from frontend/.env for VITE_ prefix variables
-  env_file: .env
+    envVars:
+      - key: VITE_SECURECIPHER_MIDDLEWARE_URL
+        value: http://localhost:8000
+      - key: VITE_SECURECIPHER_MIDDLEWARE_PUBLIC_KEY_URL
+        value: http://localhost:8000/api/middleware/public-key/
+      - key: VITE_SECURECIPHER_MIDDLEWARE_GATEWAY_URL
+        value: http://localhost:8000/api/secure/gateway/
+      - key: VITE_DEMO_MODE
+        value: true
+      - key: VITE_DEMO_CURRENCY
+        value: NGN
+      - key: VITE_DEMO_WELCOME_BONUS
+        value: 50000
+      - key: VITE_DEBUG
+        value: true
 
-web_services:
   # Middleware: Django application
-  - name: securecipher-middleware
-    env: python
-    path: middleware
+  - type: web
+    name: securecipher-middleware
+    runtime: python
+    rootDir: middleware
     buildCommand: bash setup.sh
     startCommand: gunicorn securecipher.wsgi:application --bind 0.0.0.0:$PORT --workers 3
-    # Load environment variables from middleware/.env
-    env_file: .env
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://securecipher_owner:npg_wCZYVzX3xK8g@ep-long-hill-ae3nmnnx-pooler.c-2.us-east-2.aws.neon.tech/server_db?sslmode=require&channel_binding=require
+      - key: SECRET_KEY
+        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc
+      - key: DEBUG
+        value: False
 
   # Backend (Banking API): Django application
-  - name: securecipher-backend
-    env: python
-    path: server
+  - type: web
+    name: securecipher-backend
+    runtime: python
+    rootDir: server
     buildCommand: bash setup.sh
     startCommand: gunicorn bankingapi.wsgi:application --bind 0.0.0.0:$PORT --workers 3
-    # Load environment variables from server/.env
-    env_file: .env
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://securecipher_owner:npg_wCZYVzX3xK8g@ep-long-hill-ae3nmnnx-pooler.c-2.us-east-2.aws.neon.tech/server_db?sslmode=require&channel_binding=require
+      - key: SECRET_KEY
+        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc
+      - key: FIELD_ENCRYPTION_KEY
+        value: bFKe2ZpNM0e4mAtQmiDaEd0b7PTP1OVaBFuGvGStLzc=
+      - key: DEBUG
+        value: False
