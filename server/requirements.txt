@@ -8,11 +8,13 @@ django-cryptography-5==2.0.3
 django-fernet-fields==0.6
 djangorestframework==3.15.2
 dotenv==0.9.9
+dj-database-url>=0.5.0  # Parse database URLs for Django
 gunicorn==21.2.0
-whitenoise==6.5.0
 packaging==25.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter for production
 pycparser==2.22
 python-dotenv==1.1.1
 pytz==2025.2
 sqlparse==0.5.3
 typing_extensions==4.14.1
+whitenoise==6.5.0

@@ -47,7 +47,17 @@ class User(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        """Override save to automatically generate hashes for NIN and BVN"""
+        """Override save to automatically generate hashes for NIN and BVN and account number"""
+        # Generate account number if not provided
+        if not self.account_number and self.phone_number:
+            phone_digits = self.phone_number.lstrip('0').replace('+234', '').replace(' ', '').replace('-', '')
+            if len(phone_digits) >= 10:
+                self.account_number = phone_digits[:10]
+            else:
+                # Generate a random 10-digit account number if phone number is not suitable
+                import random
+                self.account_number = ''.join([str(random.randint(0, 9)) for _ in range(10)])
+        
         # Generate NIN hash if NIN is provided
         if self.nin and not self.nin_hash:
             self.nin_hash = hashlib.sha256(self.nin.encode()).hexdigest()
