@@ -2,7 +2,7 @@
 # Centralized API endpoints configuration
 
 # Base URL for banking API - change this for different environments
-BANKING_API_BASE_URL = 'http://localhost:8001'
+BANKING_API_BASE_URL = 'https://securecipher-server.onrender.com'
 
 # API Endpoints
 API_ENDPOINTS = {
