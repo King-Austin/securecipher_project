@@ -156,7 +156,7 @@ class TransactionAdmin(admin.ModelAdmin):
 
 @admin.register(ApiKeyPair)
 class ApiKeyPairAdmin(admin.ModelAdmin):
-    list_display = ('label', 'created_at', 'updated_at')
+    list_display = ('label', 'public_key', 'created_at', 'updated_at')
     list_filter = ('created_at', 'updated_at')
     search_fields = ('label',)
     readonly_fields = ('created_at', 'updated_at')
