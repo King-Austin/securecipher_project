@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { secureRegistrationRequest } from '../services/secureApi';
+import { generateUsername } from '../utils/usernameGenerator';
 
 const steps = ['BIO', 'VERIFY', 'SECURITY'];
 
@@ -35,11 +36,25 @@ export default function Registration() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      };
+
+      // Generate username when first or last name changes
+      if (name === 'first_name' || name === 'last_name') {
+        const firstName = name === 'first_name' ? value : prev.first_name;
+        const lastName = name === 'last_name' ? value : prev.last_name;
+        newData.username = generateUsername(firstName, lastName);
+      }
+
+      return newData;
+    });
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
   const validateAllData = () => {
@@ -479,7 +494,7 @@ function Step2({ formData, handleChange, errors, inputRef, firstErrorRef }) {
 function Step3({ formData, handleChange, errors, inputRef, firstErrorRef }) {
   return (
     <div className="space-y-6">
-      <InputField name="username" label="Username" value={formData.username} onChange={handleChange} error={errors.username} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
+      <InputField name="username" label="Username" value={formData.username} onChange={handleChange} disabled error={errors.username} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
       <InputField name="pin" type="password" label="6-Digit Security PIN" placeholder="your pin e.g 328712" inputMode="numeric" pattern="[0-9]{6}" value={formData.pin} onChange={handleChange} error={errors.pin} maxLength={6} />
       <InputField name="confirm_pin" type="password" pattern="[0-9]{6}" inputMode="numeric" label="Confirm PIN" value={formData.confirm_pin} onChange={handleChange} error={errors.confirm_pin} placeholder='repeat the pin' maxLength={6} />
       <div className="mt-2 p-3 bg-green-50 rounded text-green-700 text-sm">
@@ -522,7 +537,9 @@ function InputField({
   pattern,
   inputRef,
   firstErrorRef,
-  autoFocus
+  autoFocus,
+  disabled,
+  helperText
 }) {
   return (
     <div>
@@ -543,11 +560,19 @@ function InputField({
           inputMode={inputMode}
           pattern={pattern}
           autoFocus={autoFocus}
+          disabled={disabled}
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-error` : undefined}
-          className={`appearance-none block w-full px-3 py-2 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm`}
+          className={`appearance-none block w-full px-3 py-2 border ${
+            error ? 'border-red-500' : 'border-gray-300'
+          } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm ${
+            disabled ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
+          }`}
         />
       </div>
+      {helperText && !error && (
+        <p className="mt-2 text-sm text-gray-500">{helperText}</p>
+      )}
       {error && (
         <p id={`${name}-error`} ref={firstErrorRef} className="mt-2 text-sm text-red-600">
           {error}
