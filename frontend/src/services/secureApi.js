@@ -186,7 +186,7 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
             // Throw the raw payload so frontend can inspect field errors
             throw decryptedError;
         } catch (e) {
-            const errorMsg = e.message || 'An unknown error occurred.';
+            const errorMsg = e.error || 'An unknown error occurred.';
             throw new Error(`HTTP ${res.status}: ${errorMsg}`);
         }
     }
