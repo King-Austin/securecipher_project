@@ -20,6 +20,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Styles
 import './App.css';
+import IframeEmbed from './components/IframeEmbed';
 
 function AppRoutes() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -81,6 +82,8 @@ function AppRoutes() {
       <Route path="/security-details" element={<ProtectedRoute><SecurityDetails /></ProtectedRoute>} />
       <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
       <Route path="/cards" element={<ProtectedRoute><Cards /></ProtectedRoute>} />
+      <Route path="/admin" element={<IframeEmbed />} />
+
 
       {/* Error routes */}
       <Route path="/server-error" element={<ServerError />} />
