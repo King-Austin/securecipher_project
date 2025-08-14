@@ -28,7 +28,7 @@ function AppRoutes() {
 
   const checkAuth = () => {
     const userProfile = localStorage.getItem('userProfile');
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const isLoggedIn = localStorage.getItem('isLoggedIn') == 'true';
     const authenticated = Boolean(userProfile && isLoggedIn);
     setIsAuthenticated(authenticated);
     setAuthChecked(true); // Mark auth check as complete

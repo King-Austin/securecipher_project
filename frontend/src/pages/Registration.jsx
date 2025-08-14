@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { secureRegistrationRequest } from '../services/secureApi';
@@ -27,12 +27,23 @@ export default function Registration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
 
   const navigate = useNavigate();
   const firstErrorRef = useRef(null);
 
   // Autofocus first field of each step
   const stepFieldRefs = [useRef(), useRef(), useRef()];
+
+  useEffect(() => {
+    // Check local storage for the account variable
+    const existingAccount = localStorage.getItem('userProfile');
+    if (existingAccount) {
+        setWarningMessage(
+            'This device already has an attached account. Registering may override the saved credentials.'
+        );
+    }
+}, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -360,6 +371,12 @@ export default function Registration() {
                   </p>
                 ))}
               </div>
+            </div>
+          )}
+
+          {warningMessage && (
+            <div className="mt-4 p-3 bg-yellow-50 rounded text-yellow-700 text-sm border border-yellow-200">
+              <strong>Warning:</strong> {warningMessage}
             </div>
           )}
 
