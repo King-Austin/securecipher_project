@@ -213,40 +213,40 @@ export async function fetchEncryptedPrivateKey() {
     }
 }
 
-export async function clearAllKeyData() {
-    try {
-        const db = await dbPromise;
+// export async function clearAllKeyData() {
+//     try {
+//         const db = await dbPromise;
         
-        // Clear all data from the keys object store
-        await db.clear('keys');
+//         // Clear all data from the keys object store
+//         await db.clear('keys');
         
-        // Close the database connection
-        db.close();
+//         // Close the database connection
+//         db.close();
         
-        // Delete the entire database for complete cleanup
-        await new Promise((resolve, reject) => {
-            const deleteReq = indexedDB.deleteDatabase('secure-cipher-bank');
-            deleteReq.onsuccess = () => resolve();
-            deleteReq.onerror = () => reject(deleteReq.error);
-            deleteReq.onblocked = () => {
-                console.warn('Database deletion blocked, but continuing...');
-                resolve(); // Continue even if blocked
-            };
-        });
+//         // Delete the entire database for complete cleanup
+//         await new Promise((resolve, reject) => {
+//             const deleteReq = indexedDB.deleteDatabase('secure-cipher-bank');
+//             deleteReq.onsuccess = () => resolve();
+//             deleteReq.onerror = () => reject(deleteReq.error);
+//             deleteReq.onblocked = () => {
+//                 console.warn('Database deletion blocked, but continuing...');
+//                 resolve(); // Continue even if blocked
+//             };
+//         });
         
-        // Reset the database promise to create a fresh connection
-        dbPromise = createDbConnection();
+//         // Reset the database promise to create a fresh connection
+//         dbPromise = createDbConnection();
         
-        console.log('All cryptographic key data cleared from IndexedDB');
-        return true;
-    } catch (error) {
-        console.error('Error clearing IndexedDB data:', error);
+//         console.log('All cryptographic key data cleared from IndexedDB');
+//         return true;
+//     } catch (error) {
+//         console.error('Error clearing IndexedDB data:', error);
         
-        // Even if clearing fails, reset the connection
-        dbPromise = createDbConnection();
-        throw error;
-    }
-}
+//         // Even if clearing fails, reset the connection
+//         dbPromise = createDbConnection();
+//         throw error;
+//     }
+// }
 
 // --- Encrypt/Decrypt Private Key with PIN ---
 export async function deriveEncryptionKey(pin, salt) {

@@ -130,51 +130,7 @@ export default function SecurityDetails() {
     });
   };
 
-  const handleEmergencyLogout = async () => {
-    const confirmed = confirm(
-      '⚠️ EMERGENCY LOGOUT WARNING ⚠️\n\n' +
-      'This will permanently delete:\n' +
-      '• Your encrypted private key\n' +
-      '• All profile data\n' +
-      '• Session information\n\n' +
-      '🔴 THIS CANNOT BE UNDONE 🔴\n\n' +
-      'You will need to re-register completely.\n\n' +
-      'Continue with emergency logout?'
-    );
 
-    if (confirmed) {
-      try {
-        // Clear all data
-        localStorage.clear();
-        sessionStorage.clear();
-        
-        // Clear IndexedDB
-        try {
-          await SecureKeyManager.clearAllKeyData();
-        } catch (error) {
-          console.warn('Error clearing IndexedDB:', error);
-        }
-
-        alert(
-          '✅ LOGOUT COMPLETE\n\n' +
-          'All data has been permanently wiped.\n' +
-          'Redirecting to registration...'
-        );
-        
-        // Redirect to registration
-        window.location.href = '/register';
-        
-      } catch (error) {
-        console.error('Error during emergency logout:', error);
-        alert(
-          '⚠️ LOGOUT WARNING\n\n' +
-          'Some data may not have been cleared.\n' +
-          'Please clear browser data manually and restart browser.'
-        );
-        navigate('/register', { replace: true });
-      }
-    }
-  };
 
   const maskSensitiveData = (data, visible = false) => {
     if (!data || visible) return data || 'Not provided';
@@ -461,10 +417,7 @@ export default function SecurityDetails() {
                   <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
                   Keep your browser and device software updated
                 </li>
-                <li className="flex items-start">
-                  <AlertCircle className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
-                  <span className="text-red-700">Emergency logout permanently destroys all keys - use only when necessary</span>
-                </li>
+
               </ul>
             </div>
           </div>
@@ -558,18 +511,26 @@ export default function SecurityDetails() {
                 <AlertCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
                 <div className="text-sm text-red-700">
                   <p className="font-medium mb-1">⚠️ Data Wipe Warning</p>
-                  <p>The emergency logout will permanently delete all cryptographic keys, user data, and session information from this device. This action cannot be undone and you will need to re-register with SecureCipher.</p>
+                  <p>This would require you to re-authenticate</p>
                 </div>
               </div>
             </div>
             
             <div className="flex justify-center">
               <button
-                onClick={handleEmergencyLogout}
+                onClick={() => {
+                    // Clear authentication state
+                    localStorage.setItem('isLoggedIn', 'false');
+                    
+                    // Navigate to login page
+                    setTimeout(() => {
+                      navigate('/login', { replace: true });
+                    }, 500);
+                  }}
                 className="flex items-center justify-center px-6 py-3 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium"
               >
                 <AlertCircle className="h-4 w-4 mr-2" />
-                Emergency Logout & Data Wipe
+                Logout
               </button>
             </div>
           </div>

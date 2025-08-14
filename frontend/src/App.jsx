@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Layouts
 import Layout from './components/layout/Layout';
@@ -22,43 +22,62 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import './App.css';
 
 function AppRoutes() {
-  const isAuthenticated = !!(localStorage.getItem('userProfile') && localStorage.getItem('userTransactions'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const checkAuth = () => {
+    const userProfile = localStorage.getItem('userProfile');
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const authenticated = Boolean(userProfile && isLoggedIn);
+    setIsAuthenticated(authenticated);
+    return authenticated;
+  };
+
+  useEffect(() => {
+    checkAuth(); // Initial check
+    
+    // Listen for storage events (from other tabs)
+    const handleStorageChange = () => {
+      checkAuth();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Helper function for protected routes
+  const ProtectedRoute = ({ children }) => {
+    return isAuthenticated ? (
+      <Layout>
+        {children}
+      </Layout>
+    ) : <Navigate to="/register" />;
+  };
 
   return (
     <Routes>
       {/* Root redirect */}
       <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/register" />} />
-      
-      {/* Public routes */}
-      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Registration />} />
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
 
-      {/* Protected routes */}
-      <Route path="/dashboard" element={isAuthenticated ? (
-        <Layout>
-          <Dashboard />
-        </Layout>
-      ) : <Navigate to="/register" />} />
-      <Route path="/send-money" element={isAuthenticated ? (
-        <Layout>
-          <SendMoney />
-        </Layout>
-      ) : <Navigate to="/register" />} />
-      <Route path="/security-details" element={isAuthenticated ? (
-        <Layout>
-          <SecurityDetails />
-        </Layout>
-      ) : <Navigate to="/register" />} />
-      <Route path="/transactions" element={isAuthenticated ? (
-        <Layout>
-          <Transactions />
-        </Layout>
-      ) : <Navigate to="/register" />} />
-      <Route path="/cards" element={isAuthenticated ? (
-        <Layout>
-          <Cards />
-        </Layout>
-      ) : <Navigate to="/register" />} />
+      {/* Public routes */}
+      <Route path="/register" element={<Registration />} />
+      <Route 
+        path="/login" 
+        element={
+          <Login 
+            isAuthenticated={isAuthenticated} 
+            userProfile={JSON.parse(localStorage.getItem('userProfile') || 'null')}
+            onAuthChange={checkAuth} // Pass callback to update auth state
+          />
+        } 
+      />
+
+      {/* Protected routes - now all using the same authentication logic */}
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/send-money" element={<ProtectedRoute><SendMoney /></ProtectedRoute>} />
+      <Route path="/security-details" element={<ProtectedRoute><SecurityDetails /></ProtectedRoute>} />
+      <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+      <Route path="/cards" element={<ProtectedRoute><Cards /></ProtectedRoute>} />
 
       {/* Error routes */}
       <Route path="/server-error" element={<ServerError />} />

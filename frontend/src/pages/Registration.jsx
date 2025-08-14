@@ -158,44 +158,40 @@ export default function Registration() {
       if (response && response.user) {
         console.log('✅ Registration Success Response:', response);
         
-        // Store user data with proper error handling
         try {
+          // Clear any existing data first
+          localStorage.clear();
+          
+          // Store new user data
           localStorage.setItem('userProfile', JSON.stringify(response.user));
+          localStorage.setItem('userTransactions', JSON.stringify([response.transactions]));
+          localStorage.setItem('isLoggedIn', 'false');
           
-          // Ensure userTransactions exists even if empty
-          const transactions = response.transactions || [];
-          localStorage.setItem('userTransactions', JSON.stringify(transactions));
-          
-          console.log('✅ User data stored in localStorage:', {
-            userProfile: response.user,
-            userTransactions: transactions
-          });
+          console.log('✅ User data stored in localStorage');
           
           // Set success state for UI feedback
           setSuccess(true);
           
-          // Wait a bit longer to ensure localStorage is properly set
-          setTimeout(() => {
-            console.log('✅ Redirecting to dashboard...');
+          // Add staged timeouts for reliable state updates and navigation
+          const timeouts = [
+            // First timeout: Ensure UI updates are complete
+            setTimeout(() => {
+              console.log('✅ Success state set, preparing navigation...');
+            }, 500),
             
-            // Try navigate first
-            try {
-              navigate('/dashboard', { replace: true });
-              
-              // Fallback: if navigate doesn't work, use window.location
-              setTimeout(() => {
-                if (window.location.pathname !== '/dashboard') {
-                  console.log('🔄 Navigate failed, using window.location...');
-                  window.location.href = '/dashboard';
-                }
-              }, 500);
-              
-            } catch (navError) {
-              console.error('❌ Navigation error:', navError);
-              // Force redirect using window.location
-              window.location.href = '/dashboard';
-            }
-          }, 1500);
+
+            
+            // Final timeout: Fallback to direct URL change if needed
+            setTimeout(() => {
+              if (window.location.pathname !== '/login') {
+                console.log('🔄 Using fallback navigation...');
+                window.location.href = '/login';
+              }
+            }, 2500)
+          ];
+          
+          // Cleanup function for timeouts
+          return () => timeouts.forEach(timeout => clearTimeout(timeout));
           
         } catch (storageError) {
           console.error('❌ Error storing user data:', storageError);
@@ -311,11 +307,11 @@ export default function Registration() {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Account Created!</h2>
           <p className="text-green-700 mb-4">
             Your SecureCipher account has been securely created with encrypted keys. 
-            Redirecting to your dashboard...
+            Redirecting to your login...
           </p>
           <Loader2 className="animate-spin h-6 w-6 mx-auto text-green-500" />
           <p className="text-sm text-gray-500 mt-4">
-            If you're not redirected automatically, <a href="/dashboard" className="text-green-600 underline">click here</a>
+            If you're not redirected automatically, <a href="/login" className="text-green-600 underline">click here</a>
           </p>
         </div>
       </div>
