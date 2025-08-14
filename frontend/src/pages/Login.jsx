@@ -7,7 +7,15 @@ export default function Login({ isAuthenticated, userProfile, onAuthChange }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false); // Ensure auth check completes before rendering
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+    setAuthChecked(true); // Mark auth check as complete
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +33,7 @@ export default function Login({ isAuthenticated, userProfile, onAuthChange }) {
 
       // Set login status
       localStorage.setItem('isLoggedIn', 'true');
-      
+
       // Call the parent callback to update authentication state immediately
       if (onAuthChange) {
         onAuthChange();
@@ -43,6 +51,8 @@ export default function Login({ isAuthenticated, userProfile, onAuthChange }) {
       setIsLoading(false);
     }
   };
+
+  if (!authChecked) return null; // Wait for auth check to complete
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

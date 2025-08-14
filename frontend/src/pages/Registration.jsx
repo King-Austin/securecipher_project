@@ -164,7 +164,7 @@ export default function Registration() {
           
           // Store new user data
           localStorage.setItem('userProfile', JSON.stringify(response.user));
-          localStorage.setItem('userTransactions', JSON.stringify([response.transactions]));
+          localStorage.setItem('userTransactions', JSON.stringify(response.transactions));
           localStorage.setItem('isLoggedIn', 'false');
           
           console.log('✅ User data stored in localStorage');
