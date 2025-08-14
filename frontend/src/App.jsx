@@ -23,30 +23,33 @@ import './App.css';
 
 function AppRoutes() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false); // Ensure auth check completes before rendering
 
   const checkAuth = () => {
     const userProfile = localStorage.getItem('userProfile');
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     const authenticated = Boolean(userProfile && isLoggedIn);
     setIsAuthenticated(authenticated);
+    setAuthChecked(true); // Mark auth check as complete
     return authenticated;
   };
 
   useEffect(() => {
     checkAuth(); // Initial check
-    
+
     // Listen for storage events (from other tabs)
     const handleStorageChange = () => {
       checkAuth();
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
-    
+
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Helper function for protected routes
   const ProtectedRoute = ({ children }) => {
+    if (!authChecked) return null; // Wait for auth check to complete
     return isAuthenticated ? (
       <Layout>
         {children}
@@ -57,7 +60,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Root redirect */}
-      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/register" />} />
+      <Route path="/" element={authChecked ? (isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/register" />) : null} />
 
       {/* Public routes */}
       <Route path="/register" element={<Registration />} />

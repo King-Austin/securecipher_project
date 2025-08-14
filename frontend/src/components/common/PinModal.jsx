@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
 
 export default function PinModal({ isOpen, onClose, onSubmit, isLoading = false }) {
@@ -6,16 +6,25 @@ export default function PinModal({ isOpen, onClose, onSubmit, isLoading = false 
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (error) {
+      console.error('Error in PinModal:', error);
+    }
+  }, [error]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!pin.trim()) {
-      setError('PIN is required');
-      return;
-    }
 
-    onSubmit(pin);
+    try {
+      if (!pin.trim()) {
+        throw new Error('PIN is required');
+      }
+
+      onSubmit(pin);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleClose = () => {
