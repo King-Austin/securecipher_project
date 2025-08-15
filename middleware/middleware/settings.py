@@ -190,5 +190,5 @@ ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
 
 
 # Define routing table for downstream services
-from api.config import DEFAULT_ROUTING_TABLE
+from cryptoengine.config import DEFAULT_ROUTING_TABLE
 ROUTING_TABLE = DEFAULT_ROUTING_TABLE

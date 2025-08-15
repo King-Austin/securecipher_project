@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
-from api.views import index_view  # import landing page view
+from cryptoengine.views import index_view  # import landing page view
 from django.views.generic import RedirectView
 
 

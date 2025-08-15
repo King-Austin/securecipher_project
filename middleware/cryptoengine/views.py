@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from django.conf import settings
 from django.shortcuts import render
 
-from api.models import MiddlewareKey, UsedNonce, TransactionMetadata
+from cryptoengine.models import MiddlewareKey, UsedNonce, TransactionMetadata
 from scripts import generate_keypair
 from .crypto_utils import CryptoHandler
 from .downstream_handler import (

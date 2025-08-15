@@ -4,7 +4,7 @@ from django.contrib import admin
 
 class CryptoEngineConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'api'
+    name = 'cryptoengine'
     verbose_name = 'SecureCipher Middleware API'
 
     def ready(self):

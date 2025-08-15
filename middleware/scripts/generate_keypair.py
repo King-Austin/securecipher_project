@@ -1,4 +1,4 @@
-from api.models import MiddlewareKey
+from cryptoengine.models import MiddlewareKey
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 
