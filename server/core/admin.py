@@ -64,10 +64,6 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
     
-<<<<<<< HEAD
-=======
-
->>>>>>> af14989 (Change commited and made to the views and maintain consistency int he username and the required fields:)
     
 
 @admin.register(Transaction)
