@@ -1,10 +1,8 @@
 from django.db import models
 from django.utils import timezone
-from decimal import Decimal
 import uuid
 import random
 import string
-import hashlib
 from django.contrib.auth.models import AbstractUser
 from encrypted_model_fields.fields import EncryptedCharField
 
@@ -49,28 +47,10 @@ class User(AbstractUser):
                 # Generate a random 10-digit account number if phone number is not suitable
                 import random
                 self.account_number = ''.join([str(random.randint(0, 9)) for _ in range(10)])
-        
-        # Generate NIN hash if NIN is provided
-    #     if self.nin and not self.nin_hash:
-    #         self.nin_hash = hashlib.sha256(self.nin.encode()).hexdigest()
-        
-    #     # Generate BVN hash if BVN is provided
-    #     if self.bvn and not self.bvn_hash:
-    #         self.bvn_hash = hashlib.sha256(self.bvn.encode()).hexdigest()
-    #
-    #     super().save(*args, **kwargs)
 
-    # def verify_nin(self, nin_to_verify):
-    #     """Verify if provided NIN matches the stored encrypted NIN"""
-    #     if not nin_to_verify or not self.nin_hash:
-    #         return False
-    #     return self.nin_hash == hashlib.sha256(nin_to_verify.encode()).hexdigest()
 
-    # def verify_bvn(self, bvn_to_verify):
-    #     """Verify if provided BVN matches the stored encrypted BVN"""
-    #     if not bvn_to_verify or not self.bvn_hash:
-    #         return False
-    #     return self.bvn_hash == hashlib.sha256(bvn_to_verify.encode()).hexdigest()
+            
+        super().save(*args, **kwargs)
 
 
 
@@ -143,7 +123,7 @@ class Transaction(models.Model):
 class ApiKeyPair(models.Model):
     label = models.CharField(max_length=50, unique=True)
     public_key = models.TextField()
-    private_key = models.TextField()
+    private_key = EncryptedCharField(verbose_name="Private Key", max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

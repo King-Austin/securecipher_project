@@ -16,8 +16,6 @@ export default function Registration() {
     pin: '',
     confirm_pin: '',
     phone: '',
-    bvn: '',
-    nin: '',
     date_of_birth: '',
     address: '',
     occupation: '',
@@ -79,17 +77,7 @@ export default function Registration() {
       allErrors.email = 'Email is invalid';
     }
     if (!formData.phone.trim()) allErrors.phone = 'Phone number is required';
-    // Verification
-    if (!formData.bvn.trim()) {
-      allErrors.bvn = 'BVN is required';
-    } else if (!/^\d{11}$/.test(formData.bvn)) {
-      allErrors.bvn = 'BVN must be 11 digits';
-    }
-    if (!formData.nin.trim()) {
-      allErrors.nin = 'NIN is required';
-    } else if (!/^\d{11}$/.test(formData.nin)) {
-      allErrors.nin = 'NIN must be 11 digits';
-    }
+
     if (!formData.date_of_birth) allErrors.date_of_birth = 'Date of birth is required';
     if (!formData.address.trim()) allErrors.address = 'Address is required';
     if (!formData.occupation.trim()) allErrors.occupation = 'Occupation is required';
@@ -155,8 +143,7 @@ export default function Registration() {
         date_of_birth: formData.date_of_birth,
         address: formData.address,
         occupation: formData.occupation,
-        nin: formData.nin,
-        bvn: formData.bvn,
+
         username: formData.username,
       };
       console.log('Registration Payload:', registrationPayload);
@@ -248,8 +235,7 @@ export default function Registration() {
               public_key: 'Account Security',
               username: 'Username',
               email: 'Email',
-              bvn: 'BVN',
-              nin: 'NIN',
+
               first_name: 'First Name',
               last_name: 'Last Name'
             };
@@ -495,8 +481,6 @@ function Step1({ formData, handleChange, errors, inputRef, firstErrorRef }) {
 function Step2({ formData, handleChange, errors, inputRef, firstErrorRef }) {
   return (
     <div className="space-y-6">
-      <InputField name="bvn" label="Bank Verification Number (BVN)" value={formData.bvn} onChange={handleChange} error={errors.bvn} inputMode="numeric" maxLength={11} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
-      <InputField name="nin" label="National Identification Number (NIN)" value={formData.nin} onChange={handleChange} error={errors.nin} inputMode="numeric" maxLength={11} />
       <InputField name="date_of_birth" type="date" label="Date of Birth" value={formData.date_of_birth} onChange={handleChange} error={errors.date_of_birth} />
       <InputField name="address" label="Residential Address" value={formData.address} onChange={handleChange} error={errors.address} />
       <InputField name="occupation" label="Occupation" value={formData.occupation} onChange={handleChange} error={errors.occupation} />
@@ -507,7 +491,7 @@ function Step2({ formData, handleChange, errors, inputRef, firstErrorRef }) {
 function Step3({ formData, handleChange, errors, inputRef, firstErrorRef }) {
   return (
     <div className="space-y-6">
-      <InputField name="username" label="Username" value={formData.username} onChange={handleChange} disabled error={errors.username} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
+      <input type='hidden' name="username" label="Username" value={formData.username}  onChange={handleChange} disabled error={errors.username} inputRef={inputRef} firstErrorRef={firstErrorRef} autoFocus />
       <InputField name="pin" type="password" label="6-Digit Security PIN" placeholder="your pin e.g 328712" inputMode="numeric" pattern="[0-9]{6}" value={formData.pin} onChange={handleChange} error={errors.pin} maxLength={6} />
       <InputField name="confirm_pin" type="password" pattern="[0-9]{6}" inputMode="numeric" label="Confirm PIN" value={formData.confirm_pin} onChange={handleChange} error={errors.confirm_pin} placeholder='repeat the pin' maxLength={6} />
       <div className="mt-2 p-3 bg-green-50 rounded text-green-700 text-sm">

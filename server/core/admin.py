@@ -22,7 +22,7 @@ admin.site.index_title = "Welcome to SecureCipher Banking Administration"
 class CustomUserAdmin(UserAdmin):
     list_display = (
         'username', 'email', 'first_name', 'last_name', 'account_number', 
-        'balance', 'status', 'is_verified', 'has_nin', 'has_bvn', 'created_at'
+        'balance', 'status', 'is_verified', 'created_at'
     )
     list_filter = ('status', 'account_type', 'is_verified', 'is_active', 'date_joined')
     search_fields = (
@@ -31,21 +31,11 @@ class CustomUserAdmin(UserAdmin):
     )
     readonly_fields = (
         'account_number', 'created_at', 'updated_at', 'date_joined', 
-        'last_login', 'nin_hash', 'bvn_hash', 'public_key'
+        'last_login', 'public_key'
     )
     date_hierarchy = 'created_at'
     
-    def has_nin(self, obj):
-        """Show if user has NIN without revealing it"""
-        return bool(obj.nin_hash)
-    has_nin.boolean = True
-    has_nin.short_description = 'Has NIN'
-    
-    def has_bvn(self, obj):
-        """Show if user has BVN without revealing it"""
-        return bool(obj.bvn_hash)
-    has_bvn.boolean = True
-    has_bvn.short_description = 'Has BVN'
+
     
     fieldsets = (
         ('User Information', {
@@ -59,15 +49,11 @@ class CustomUserAdmin(UserAdmin):
         }),
         ('Personal Information', {
             'fields': (
-                'phone_number', 'date_of_birth', 'address', 'occupation'
+                'phone_number', 'date_of_birth', 'address', 'occupation', 'public_key'
             ),
             'classes': ('collapse',)
         }),
-        ('Security & Verification', {
-            'fields': ('nin', 'bvn', 'nin_hash', 'bvn_hash', 'public_key'),
-            'classes': ('collapse',),
-            'description': 'Sensitive information - NIN and BVN are encrypted. Only hashes shown for verification.'
-        }),
+        
         ('Permissions', {
             'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions'),
             'classes': ('collapse',)
@@ -78,6 +64,10 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
     
+<<<<<<< HEAD
+=======
+
+>>>>>>> af14989 (Change commited and made to the views and maintain consistency int he username and the required fields:)
     
 
 @admin.register(Transaction)

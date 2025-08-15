@@ -37,7 +37,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = (
             'username', 'email', 'first_name', 'last_name',
             'public_key', 'phone_number', 'date_of_birth', 'address',
-            'occupation', 'nin', 'bvn', 'is_verified',
+            'occupation', 'is_verified',
         )
 
     def validate(self, attrs):
@@ -51,23 +51,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 print(f"[UserRegistrationSerializer] Duplicate found for {field}: {value}")
                 raise serializers.ValidationError({field: f"This {field.replace('_', ' ')} is already registered."})
 
-        # Handle NIN and BVN validation with proper hashing
-        nin = attrs.get('nin')
-        bvn = attrs.get('bvn')
 
-        if nin:
-            nin_hash = hashlib.sha256(nin.encode()).hexdigest()
-            if User.objects.filter(nin_hash=nin_hash).exists():
-                raise serializers.ValidationError({'nin': 'This NIN is already registered.'})
-            # Store the hash for later use in create method
-            attrs['_nin_hash'] = nin_hash
-
-        if bvn:
-            bvn_hash = hashlib.sha256(bvn.encode()).hexdigest()
-            if User.objects.filter(bvn_hash=bvn_hash).exists():
-                raise serializers.ValidationError({'bvn': 'This BVN is already registered.'})
-            # Store the hash for later use in create method
-            attrs['_bvn_hash'] = bvn_hash
 
         print("[UserRegistrationSerializer] Validation passed for all unique fields.")
         return attrs
@@ -93,14 +77,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         print("[UserRegistrationSerializer] Public key hash generated:", pubkey_hash)
         validated_data['password'] = pubkey_hash
 
-        # Extract and set NIN/BVN hashes if present
-        nin_hash = validated_data.pop('_nin_hash', None)
-        bvn_hash = validated_data.pop('_bvn_hash', None)
-        
-        if nin_hash:
-            validated_data['nin_hash'] = nin_hash
-        if bvn_hash:
-            validated_data['bvn_hash'] = bvn_hash
+
 
         print("[UserRegistrationSerializer] Generating account number...")
         validated_data['account_number'] = self.generate_account_number(validated_data)
@@ -163,7 +140,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name',
             'public_key', 'phone_number', 'date_of_birth', 'address',
-            'occupation', 'nin', 'bvn', 'is_verified', 'account_number', 
+            'occupation', 'is_verified', 'account_number', 
             'balance', 'account_type', 'status', 'is_primary', 'created_at', 'updated_at'
         )
         read_only_fields = (
