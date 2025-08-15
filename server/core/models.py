@@ -4,7 +4,7 @@ import uuid
 import random
 import string
 from django.contrib.auth.models import AbstractUser
-from encrypted_model_fields.fields import EncryptedCharField
+from encrypted_model_fields.fields import EncryptedTextField
 
 
 class User(AbstractUser):
@@ -123,7 +123,7 @@ class Transaction(models.Model):
 class ApiKeyPair(models.Model):
     label = models.CharField(max_length=50, unique=True)
     public_key = models.TextField()
-    private_key = EncryptedCharField(verbose_name="Private Key", max_length=500)
+    private_key = EncryptedTextField(verbose_name="Private Key", max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
