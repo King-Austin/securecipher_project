@@ -156,16 +156,7 @@ class UserSerializer(serializers.ModelSerializer):
     by django-cryptography. Validation is done through hash comparison.
     """
 
-    def __init__(self, *args, **kwargs):
-        # Accept 'fields' argument to control which fields are serialized
-        fields = kwargs.pop('fields', None)
-        super().__init__(*args, **kwargs)
-        if fields is not None:
-            # Drop any fields that are not specified in the `fields` argument.
-            allowed = set(fields)
-            existing = set(self.fields)
-            for field_name in existing - allowed:
-                self.fields.pop(field_name)
+
 
     class Meta:
         model = User
@@ -178,16 +169,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id', 'account_number', 'created_at', 'updated_at'
         )
-        # Exclude NIN and BVN from API responses for security
-        exclude_from_api = ('nin', 'bvn')
 
-    def to_representation(self, instance):
-        """Override to exclude sensitive fields from API responses"""
-        data = super().to_representation(instance)
-        # Remove NIN and BVN from API responses for security
-        data.pop('nin', None)
-        data.pop('bvn', None)
-        return data
 
 class TransferSerializer(serializers.Serializer):
     destination_account_number = serializers.CharField(max_length=20)

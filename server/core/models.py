@@ -18,14 +18,6 @@ class User(AbstractUser):
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(blank=True)
     occupation = models.CharField(max_length=100, blank=True)
-    nin_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
-    nin = EncryptedCharField(max_length=255, null=True, blank=True)
-    bvn_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
-    bvn = EncryptedCharField(max_length=255, null=True, blank=True)
-
-
-
-
     public_key = models.TextField(unique=True, blank=True, null=True)
 
     # Account fields (merged from BankAccount)
@@ -59,26 +51,26 @@ class User(AbstractUser):
                 self.account_number = ''.join([str(random.randint(0, 9)) for _ in range(10)])
         
         # Generate NIN hash if NIN is provided
-        if self.nin and not self.nin_hash:
-            self.nin_hash = hashlib.sha256(self.nin.encode()).hexdigest()
+    #     if self.nin and not self.nin_hash:
+    #         self.nin_hash = hashlib.sha256(self.nin.encode()).hexdigest()
         
-        # Generate BVN hash if BVN is provided
-        if self.bvn and not self.bvn_hash:
-            self.bvn_hash = hashlib.sha256(self.bvn.encode()).hexdigest()
-            
-        super().save(*args, **kwargs)
+    #     # Generate BVN hash if BVN is provided
+    #     if self.bvn and not self.bvn_hash:
+    #         self.bvn_hash = hashlib.sha256(self.bvn.encode()).hexdigest()
+    #
+    #     super().save(*args, **kwargs)
 
-    def verify_nin(self, nin_to_verify):
-        """Verify if provided NIN matches the stored encrypted NIN"""
-        if not nin_to_verify or not self.nin_hash:
-            return False
-        return self.nin_hash == hashlib.sha256(nin_to_verify.encode()).hexdigest()
+    # def verify_nin(self, nin_to_verify):
+    #     """Verify if provided NIN matches the stored encrypted NIN"""
+    #     if not nin_to_verify or not self.nin_hash:
+    #         return False
+    #     return self.nin_hash == hashlib.sha256(nin_to_verify.encode()).hexdigest()
 
-    def verify_bvn(self, bvn_to_verify):
-        """Verify if provided BVN matches the stored encrypted BVN"""
-        if not bvn_to_verify or not self.bvn_hash:
-            return False
-        return self.bvn_hash == hashlib.sha256(bvn_to_verify.encode()).hexdigest()
+    # def verify_bvn(self, bvn_to_verify):
+    #     """Verify if provided BVN matches the stored encrypted BVN"""
+    #     if not bvn_to_verify or not self.bvn_hash:
+    #         return False
+    #     return self.bvn_hash == hashlib.sha256(bvn_to_verify.encode()).hexdigest()
 
 
 
