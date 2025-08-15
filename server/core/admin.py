@@ -78,22 +78,6 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
     
-    def get_form(self, request, obj=None, **kwargs):
-        """Customize form based on user permissions"""
-        form = super().get_form(request, obj, **kwargs)
-        
-        # Only superusers can modify balance directly
-        if not request.user.is_superuser:
-            if 'balance' in form.base_fields:
-                form.base_fields['balance'].disabled = True
-                
-        # Prevent modification of account numbers and hashes
-        readonly_fields = ['account_number', 'nin_hash', 'bvn_hash', 'public_key']
-        for field in readonly_fields:
-            if field in form.base_fields:
-                form.base_fields[field].disabled = True
-                
-        return form
     
 
 @admin.register(Transaction)
@@ -142,16 +126,6 @@ class TransactionAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
-    def has_delete_permission(self, request, obj=None):
-        """Prevent deletion of transaction records for audit compliance"""
-        return False
-    
-    def has_change_permission(self, request, obj=None):
-        """Restrict modification of completed transactions"""
-        if obj and obj.status == 'COMPLETED':
-            return False
-        return super().has_change_permission(request, obj)
 
 
 @admin.register(ApiKeyPair)
