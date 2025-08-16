@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 # Setup SecureCipher Middleware on Render
 
-# Exit immediately on error
 set -e
 
-# Upgrade pip and install dependencies (Render usually handles this)
+# Upgrade pip and install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Run database migrations
+# Run migrations in the correct order
+echo "⚙️ Applying core migrations..."
+python manage.py migrate contenttypes --noinput
+python manage.py migrate auth --noinput
+python manage.py migrate sessions --noinput
+python manage.py migrate admin --noinput
+
+# Then migrate everything else
+echo "⚙️ Applying project migrations..."
 python manage.py migrate --noinput
 
 # Collect static files
 python manage.py collectstatic --noinput
 
-# Create superuser if not exists (using env vars for safety)
+# Create superuser safely
 python manage.py shell -c "
 import os
 from django.contrib.auth import get_user_model;
