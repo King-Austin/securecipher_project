@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Shield, Copy, Check, Info, AlertCircle, User, CreditCard, Calendar, Phone, Key, Lock, Eye, EyeOff, Activity, FileText, Clock, MapPin } from 'lucide-react';
+import {
+  Shield, Copy, Check, Info, AlertCircle, User, CreditCard, Calendar,
+  Phone, Key, Lock, Eye, EyeOff, Activity, MapPin
+} from 'lucide-react';
 import * as SecureKeyManager from '../utils/SecureKeyManager';
 import { useNavigate } from 'react-router-dom';
 
 export default function SecurityDetails() {
   const navigate = useNavigate();
+
   const [userProfile, setUserProfile] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [publicKeyPem, setPublicKeyPem] = useState('');
   const [copied, setCopied] = useState(false);
   const [showFullKey, setShowFullKey] = useState(false);
   const [keyCreatedAt, setKeyCreatedAt] = useState('');
-  const [deviceInfo, setDeviceInfo] = useState('');
   const [showPinModal, setShowPinModal] = useState(true);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
@@ -21,87 +25,101 @@ export default function SecurityDetails() {
 
   useEffect(() => {
     // Load user profile from localStorage
-    const savedProfile = localStorage.getItem('userProfile');
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      setUserProfile(profile);
-      if (profile.public_key) {
-        setPublicKeyPem(profile.public_key);
+    try {
+      const savedProfile = localStorage.getItem('userProfile');
+      if (savedProfile) {
+        const profile = JSON.parse(savedProfile);
+        setUserProfile(profile || null);
+        if (profile?.public_key) setPublicKeyPem(profile.public_key);
       }
+    } catch {
+      // ignore parsing errors
     }
 
-    // Load transaction history from localStorage
-    const savedTransactions = localStorage.getItem('userTransactions');
-    if (savedTransactions) {
-      const transactions = JSON.parse(savedTransactions);
-      setUserTransactions(transactions.slice(0, 5)); // Show last 5 transactions
+    // Load transaction history from localStorage (last 5)
+    try {
+      const savedTx = localStorage.getItem('userTransactions');
+      if (savedTx) {
+        const tx = JSON.parse(savedTx);
+        if (Array.isArray(tx)) setUserTransactions(tx.slice(0, 5));
+      }
+    } catch {
+      // ignore
     }
 
-    // Generate mock security events for demonstration
+    // Demo security events
+    const now = Date.now();
     setSecurityEvents([
       {
         id: 1,
         event: 'Login Success',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(now).toISOString(),
         location: 'Current Device',
-        status: 'success'
+        status: 'success',
       },
       {
         id: 2,
         event: 'PIN Verification',
-        timestamp: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+        timestamp: new Date(now - 5 * 60 * 1000).toISOString(),
         location: 'Current Device',
-        status: 'success'
+        status: 'success',
       },
       {
         id: 3,
         event: 'Key Access',
-        timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+        timestamp: new Date(now - 60 * 60 * 1000).toISOString(),
         location: 'Current Device',
-        status: 'success'
-      }
+        status: 'success',
+      },
     ]);
 
-    setDeviceInfo(`${navigator.platform}, ${navigator.userAgent}`);
+    // Optional: if you want to skip PIN modal when no encrypted key is stored,
+    // but a public key exists locally, uncomment below:
+    /*
+    (async () => {
+      try {
+        const keyData = await SecureKeyManager.fetchEncryptedPrivateKey();
+        if (!keyData && localStorage.getItem('userProfile')) {
+          setShowPinModal(false);
+        }
+      } catch {}
+    })();
+    */
   }, []);
 
   const handlePinSubmit = async (e) => {
     e.preventDefault();
     setIsVerifying(true);
     setPinError('');
-    
+
     try {
-      // First check if we have encrypted key data
+      // Check if encrypted key data exists (device-bound private key)
       const keyData = await SecureKeyManager.fetchEncryptedPrivateKey();
+
       if (!keyData) {
-        console.log('No encrypted key data found, proceeding with public key from localStorage');
-        // If no encrypted key data, just use the public key from localStorage
+        // No encrypted private key stored: allow access with public key if present
         if (userProfile?.public_key) {
           setPublicKeyPem(userProfile.public_key);
           setShowPinModal(false);
           return;
-        } else {
-          navigate('/register', { replace: true });
-          return;
         }
+        // No profile at all → send to register
+        navigate('/register', { replace: true });
+        return;
       }
-      
-      if (keyData.createdAt) setKeyCreatedAt(new Date(keyData.createdAt).toLocaleString());
-      
-      // Verify PIN by attempting to decrypt the private key
+
+      // Keep createdAt as ISO for consistent formatting
+      if (keyData.createdAt) setKeyCreatedAt(keyData.createdAt);
+
+      // Attempt to decrypt with PIN (this is your verification)
       const { encrypted, salt, iv } = keyData;
-      const keyPair = await SecureKeyManager.decryptPrivateKey(encrypted, pin, salt, iv);
-      
-      // If we reach here, PIN is correct
-      console.log('PIN verification successful');
-      
-      // Use the public key from localStorage
-      if (userProfile?.public_key) {
-        setPublicKeyPem(userProfile.public_key);
-      }
+      await SecureKeyManager.decryptPrivateKey(encrypted, pin, salt, iv);
+
+      // If decryption succeeds, PIN is correct
+      if (userProfile?.public_key) setPublicKeyPem(userProfile.public_key);
       setShowPinModal(false);
     } catch (error) {
-      console.log('PIN verification failed:', error.message);
+      console.log('PIN verification failed:', error?.message || error);
       setPinError('Invalid PIN. Please try again.');
     } finally {
       setIsVerifying(false);
@@ -114,27 +132,45 @@ export default function SecurityDetails() {
     return showFullKey ? clean : `${clean.slice(0, 20)}...${clean.slice(-20)}`;
   };
 
-  const copyPublicKey = () => {
-    navigator.clipboard.writeText(publicKeyPem);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyPublicKey = async () => {
+    try {
+      await navigator.clipboard.writeText(publicKeyPem || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = publicKeyPem || '';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateLike) => {
+    if (!dateLike) return '—';
+    const d = typeof dateLike === 'string' ? new Date(dateLike) : dateLike;
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric', 
+      day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
-
-
   const maskSensitiveData = (data, visible = false) => {
-    if (!data || visible) return data || 'Not provided';
-    return '••••••••••';
+    if (!data) return 'Not provided';
+    return visible ? data : '••••••••••';
+    // If you’d rather show last 2 digits:
+    // return visible ? data : `${'•'.repeat(Math.max(0, String(data).length - 2))}${String(data).slice(-2)}`
   };
 
   if (!userProfile) {
@@ -193,7 +229,7 @@ export default function SecurityDetails() {
         </div>
       )}
 
-      {/* Security Details (only visible after PIN unlock) */}
+      {/* Security Details */}
       {!showPinModal && (
         <>
           {/* Header */}
@@ -220,18 +256,20 @@ export default function SecurityDetails() {
                 {showSensitiveData ? 'Hide' : 'Show'} Details
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <div className="flex items-center">
                   <User className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600 w-20">Name:</span>
-                  <span className="font-medium">{userProfile.first_name} {userProfile.last_name}</span>
+                  <span className="font-medium">
+                    {(userProfile.first_name || '')} {(userProfile.last_name || '')}
+                  </span>
                 </div>
                 <div className="flex items-center">
                   <CreditCard className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600 w-20">Account:</span>
-                  <span className="font-medium">{userProfile.account_number}</span>
+                  <span className="font-medium">{userProfile.account_number || '—'}</span>
                 </div>
                 <div className="flex items-center">
                   <Phone className="h-4 w-4 text-gray-400 mr-2" />
@@ -248,28 +286,31 @@ export default function SecurityDetails() {
                 <div className="flex items-center">
                   <Shield className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600 w-20">Status:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    userProfile.status === 'ACTIVE' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {userProfile.status}
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      userProfile.status === 'ACTIVE'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {userProfile.status || 'UNKNOWN'}
                   </span>
                 </div>
                 <div className="flex items-center">
                   <Check className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600 w-20">Verified:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    userProfile.is_verified 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      userProfile.is_verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
                     {userProfile.is_verified ? 'Verified' : 'Pending'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
+
           {/* Cryptographic Keys */}
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <div className="flex items-center mb-4">
@@ -279,7 +320,7 @@ export default function SecurityDetails() {
             <p className="text-gray-600 mb-4">
               Your public key is used to verify transactions and ensure secure communication with SecureCipher servers.
             </p>
-            
+
             <div className="bg-gray-50 border rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Public Key</span>
@@ -289,7 +330,11 @@ export default function SecurityDetails() {
                     className="flex items-center px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                     aria-label="Copy public key"
                   >
-                    {copied ? <Check className="h-3 w-3 text-green-600 mr-1" /> : <Copy className="h-3 w-3 text-gray-500 mr-1" />}
+                    {copied ? (
+                      <Check className="h-3 w-3 text-green-600 mr-1" />
+                    ) : (
+                      <Copy className="h-3 w-3 text-gray-500 mr-1" />
+                    )}
                     {copied ? 'Copied!' : 'Copy'}
                   </button>
                   {publicKeyPem && (
@@ -297,7 +342,7 @@ export default function SecurityDetails() {
                       onClick={() => setShowFullKey(!showFullKey)}
                       className="text-xs text-green-600 hover:text-green-700 underline"
                     >
-                      {showFullKey ? "Hide" : "Show Full"}
+                      {showFullKey ? 'Hide' : 'Show Full'}
                     </button>
                   )}
                 </div>
@@ -314,7 +359,9 @@ export default function SecurityDetails() {
               </div>
               <div className="flex items-center text-gray-600">
                 <Calendar className="h-4 w-4 mr-2" />
-                <span>Created: {keyCreatedAt || formatDate(userProfile.created_at)}</span>
+                <span>
+                  Created: {keyCreatedAt ? formatDate(keyCreatedAt) : formatDate(userProfile.created_at)}
+                </span>
               </div>
               <div className="flex items-center text-gray-600">
                 <Shield className="h-4 w-4 mr-2" />
@@ -323,7 +370,7 @@ export default function SecurityDetails() {
               <div className="flex items-center text-gray-600">
                 <Lock className="h-4 w-4 mr-2" />
                 <span>Private Key: Encrypted Locally</span>
-              </div>  
+              </div>
             </div>
           </div>
 
@@ -333,36 +380,30 @@ export default function SecurityDetails() {
               <Lock className="h-5 w-5 text-green-600 mr-2" />
               <h2 className="text-lg font-semibold text-gray-800">Security Settings</h2>
             </div>
-            
+
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <h3 className="font-medium text-gray-800">Two-Factor Authentication</h3>
                   <p className="text-sm text-gray-600">PIN-based authentication for sensitive operations</p>
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                  Enabled
-                </span>
+                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Enabled</span>
               </div>
-              
+
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <h3 className="font-medium text-gray-800">End-to-End Encryption</h3>
                   <p className="text-sm text-gray-600">All transactions are cryptographically signed</p>
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                  Active
-                </span>
+                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Active</span>
               </div>
-              
+
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <h3 className="font-medium text-gray-800">Device Binding</h3>
                   <p className="text-sm text-gray-600">Keys are securely stored on this device only</p>
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                  Secured
-                </span>
+                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">Secured</span>
               </div>
             </div>
           </div>
@@ -373,54 +414,18 @@ export default function SecurityDetails() {
               <Info className="h-5 w-5 text-green-600 mr-2" />
               <h2 className="text-lg font-semibold text-gray-800">Device Information</h2>
             </div>
-            
+
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="text-sm text-gray-600 space-y-2">
-                <div><strong>Platform:</strong> {navigator.platform}</div>
-                <div><strong>Browser:</strong> {navigator.userAgent.split(') ')[0]})</div>
+                <div><strong>Platform:</strong> {navigator.platform || '—'}</div>
+                <div><strong>Browser:</strong> {String(navigator.userAgent || '').split(') ')[0] || '—'}</div>
                 <div><strong>Last Access:</strong> {new Date().toLocaleString()}</div>
                 <div><strong>IP Address:</strong> Masked for privacy</div>
               </div>
             </div>
           </div>
-          {/* Security Guidelines */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-            <div className="flex items-center mb-4">
-              <Shield className="h-5 w-5 text-green-600 mr-2" />
-              <h3 className="text-lg font-semibold text-green-800">SecureCipher Security Guidelines</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ul className="text-sm text-green-700 space-y-2">
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Never share your PIN with anyone, including SecureCipher staff
-                </li>
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Your private key is encrypted and stored only on this device
-                </li>
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Always verify transaction details before confirmation
-                </li>
-              </ul>
-              <ul className="text-sm text-green-700 space-y-2">
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Log out completely when using shared or public devices
-                </li>
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Report any suspicious activity immediately
-                </li>
-                <li className="flex items-start">
-                  <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                  Keep your browser and device software updated
-                </li>
 
-              </ul>
-            </div>
-          </div>
+
 
           {/* Recent Security Activity */}
           <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -428,14 +433,16 @@ export default function SecurityDetails() {
               <Activity className="h-5 w-5 text-green-600 mr-2" />
               <h2 className="text-lg font-semibold text-gray-800">Recent Security Activity</h2>
             </div>
-            
+
             <div className="space-y-3">
               {securityEvents.map((event) => (
                 <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-3 ${
-                      event.status === 'success' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
+                    <div
+                      className={`w-2 h-2 rounded-full mr-3 ${
+                        event.status === 'success' ? 'bg-green-500' : 'bg-red-500'
+                      }`}
+                    />
                     <div>
                       <p className="text-sm font-medium text-gray-800">{event.event}</p>
                       <p className="text-xs text-gray-600 flex items-center">
@@ -445,111 +452,27 @@ export default function SecurityDetails() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
+                    <p className="text-xs text-gray-600">{formatDate(event.timestamp)}</p>
+                    <span
+                      className={`text-xs font-medium ${
+                        event.status === 'success' ? 'text-green-700' : 'text-red-700'
+                      }`}
+                    >
+                      {event.status}
+                    </span>
                   </div>
                 </div>
               ))}
+              {securityEvents.length === 0 && (
+                <p className="text-sm text-gray-500">No recent security events.</p>
+              )}
             </div>
           </div>
 
-   
 
-          {/* Account Verification Status */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <div className="flex items-center mb-4">
-              <Check className="h-5 w-5 text-green-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-800">Account Verification Status</h2>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Phone Number</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    Verified
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Email Address</span>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    userProfile?.is_verified 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {userProfile?.is_verified ? 'Verified' : 'Pending'}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Identity (NIN)</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    Verified
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Bank Account</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    Active
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Emergency Actions */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center mb-4">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-              <h3 className="text-lg font-semibold text-gray-800">Emergency Actions</h3>
-            </div>
-            
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex">
-                <AlertCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-red-700">
-                  <p className="font-medium mb-1">⚠️ Data Wipe Warning</p>
-                  <p>This would require you to re-authenticate</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-center">
-              <button
-                onClick={() => {
-                    // Clear authentication state
-                    localStorage.setItem('isLoggedIn', 'false');
-                    
-                    // Navigate to login page
-                    setTimeout(() => {
-                      navigate('/login', { replace: true });
-                    }, 500);
-                  }}
-                className="flex items-center justify-center px-6 py-3 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium"
-              >
-                <AlertCircle className="h-4 w-4 mr-2" />
-                Logout
-              </button>
-            </div>
-          </div>
-
-          {publicKeyPem === 'Public key unavailable' && (
-            <div className="mt-6 text-center bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <AlertCircle className="h-8 w-8 text-yellow-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-yellow-800 mb-2">Security Setup Required</h3>
-              <p className="text-yellow-700 mb-4">Your security keys need to be configured to access all features.</p>
-              <button
-                onClick={() => navigate('/register')}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-              >
-                Complete Security Setup
-              </button>
-            </div>
-          )}
         </>
       )}
     </div>
   );
+
 }

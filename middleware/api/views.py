@@ -16,7 +16,6 @@ from django.shortcuts import render
 
 from api.models import MiddlewareKey, UsedNonce, TransactionMetadata
 from scripts import generate_keypair
-from .crypto_utils import CryptoHandler
 from .downstream_handler import (
     send_downstream_request,
     get_bank_public_key,

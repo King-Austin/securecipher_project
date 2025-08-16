@@ -38,7 +38,7 @@ export default function Registration() {
     const existingAccount = localStorage.getItem('userProfile');
     if (existingAccount) {
         setWarningMessage(
-            'This device already has an attached account. Registering may override the saved credentials.'
+            'This device already has an attached account. Registering may override existing credentials. kindly login.'
         );
     }
 }, []);

@@ -6,7 +6,7 @@ import {
   CreditCard,
   ClipboardList,
   Shield,
-  Settings,
+  LogOut,
   Menu,
   X,
   Zap
@@ -22,9 +22,19 @@ export default function Layout({ children }) {
     { path: '/dashboard', label: 'Dashboard', icon: <Home className="w-5 h-5" /> },
     { path: '/send-money', label: 'Send Money', icon: <Send className="w-5 h-5" /> },
     { path: '/cards', label: 'My Cards', icon: <CreditCard className="w-5 h-5" /> },
-    { path: '/transactions', label: 'Transaction History', icon: <ClipboardList className="w-5 h-5" /> },
+    { path: '/transactions', label: 'Transaction History', icon: <CardList className="w-5 h-5" /> },
     { path: '/security-details', label: 'Security', icon: <Shield className="w-5 h-5" /> },
   ];
+
+      const handleLogout = () => {
+        // Clear session data
+        localStorage.setItem('isLoggedIn', 'false');
+
+        // Give small delay before redirect (avoids race conditions)
+        setTimeout(() => {
+          navigate('/login');
+        }, 150);
+      };
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
@@ -52,6 +62,17 @@ export default function Layout({ children }) {
                   <span className="ml-3">{item.label}</span>
                 </Link>
               ))}
+
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center w-full px-4 py-3 text-sm text-red-600 rounded-md hover:bg-red-50"
+              >
+
+                <LogOut className="w-5 h-5" />
+                <span className="ml-3">Logout</span>
+              </button>
 
             </nav>
           </div>
