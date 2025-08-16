@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 # Setup SecureCipher Middleware on Render
 
@@ -9,6 +10,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Apply migrations
+python manage.py makemigrations
 python manage.py migrate
 
 # Collect static files
