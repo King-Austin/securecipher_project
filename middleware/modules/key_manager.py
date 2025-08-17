@@ -1,37 +1,60 @@
+# key_manager.py
+from typing import Tuple
+from cryptography.hazmat.primitives import serialization
 from .crypto_engine import perform_ecdhe, derive_keys
-import base64
+from django.utils import timezone
+from api.models import MiddlewareKey, KeyRotationLog
 
-# --- Simple in-memory key store ---
-_key_store = {}
+def get_active_middleware_key() -> MiddlewareKey:
+    """
+    Return the active MiddlewareKey DB object. If not present create one.
+    """
+    active = MiddlewareKey.objects.filter(active=True).order_by("-version").first()
+    if active:
+        return active
+    # create new key
+    priv, pub_der = perform_ecdhe()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    pub_pem = serialization.load_der_public_key(pub_der).public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    mk = MiddlewareKey.objects.create(label="active", private_key_pem=priv_pem, public_key_pem=pub_pem, version=1, active=True)
+    return mk
 
-def store_public_key(user_id: str, public_key_pem: str):
-    _key_store[user_id] = {"public_key": public_key_pem, "revoked": False}
+def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
+    """
+    Rotate the active key: create new key, mark previous active False, log rotation.
+    """
+    old = get_active_middleware_key()
+    old.active = False
+    old.rotated_at = timezone.now()
+    old.save()
 
-def retrieve_public_key(user_id: str):
-    entry = _key_store.get(user_id)
-    return entry["public_key"] if entry else None
+    priv, pub_der = perform_ecdhe()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    pub_pem = serialization.load_der_public_key(pub_der).public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    new_version = (old.version or 1) + 1
+    new = MiddlewareKey.objects.create(label="active", private_key_pem=priv_pem, public_key_pem=pub_pem, version=new_version, active=True)
+    KeyRotationLog.objects.create(old_key=old, new_key=new, reason=reason)
+    return new
 
-def revoke_key(user_id: str):
-    if user_id in _key_store:
-        _key_store[user_id]["revoked"] = True
+def export_public_key_pem() -> str:
+    mk = get_active_middleware_key()
+    return mk.public_key_pem
 
-def rotate_keys(user_id: str):
-    private_key, public_der = perform_ecdhe()
-    _key_store[user_id] = {
-        "private_key": private_key,
-        "public_key": base64.b64encode(public_der).decode(),
-        "revoked": False
-    }
+def derive_session_key(client_ephemeral_der: bytes) -> bytes:
+    """
+    Derive session key using the active middleware private key and the client's ephemeral public key (DER).
+    Returns session key bytes.
+    """
+    mk = get_active_middleware_key()
+    our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
+    return derive_keys(our_private.exchange  # not callable; implement properly below
+                       )
 
-def export_public_key(user_id: str):
-    return _key_store[user_id]["public_key"]
-
-def derive_shared_secret(peer_public_der: bytes, private_key) -> bytes:
-    from cryptography.hazmat.primitives import serialization
+# Correct implementation for derive_session_key (replace the above incorrect snippet)
+def derive_session_key(client_ephemeral_der: bytes) -> bytes:
     from cryptography.hazmat.primitives.asymmetric import ec
-    peer_pub = serialization.load_der_public_key(peer_public_der)
-    shared_secret = private_key.exchange(ec.ECDH(), peer_pub)
-    return shared_secret
-
-def derive_session_key(shared_secret: bytes) -> bytes:
-    return derive_keys(shared_secret)
+    mk = get_active_middleware_key()
+    our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
+    peer_pub = serialization.load_der_public_key(client_ephemeral_der)
+    shared = our_private.exchange(ec.ECDH(), peer_pub)
+    return derive_keys(shared)

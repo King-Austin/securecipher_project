@@ -1,153 +1,106 @@
+# models.py
+import uuid
 from django.db import models
 from django.utils import timezone
-from datetime import timedelta
-import uuid
-from encrypted_model_fields.fields import EncryptedTextField
-
 
 class MiddlewareKey(models.Model):
-    label = models.CharField(max_length=50, unique=True)
-    private_key_pem = models.TextField()
-    public_key_pem = EncryptedTextField()
+    """
+    Stores server-side middleware keypair (PEM). For demo/research we store PEM,
+    but in production use KMS/HSM or encrypted storage.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    label = models.CharField(max_length=64, default="active", db_index=True)
+    private_key_pem = models.TextField(help_text="PEM encoded private key (encrypted at rest recommended)")
+    public_key_pem = models.TextField(help_text="PEM encoded public key")
+    version = models.PositiveIntegerField(default=1)
+    active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.label
-
-class UsedNonce(models.Model):
-    """Stores nonces that have been used to prevent replay attacks."""
-    nonce = models.CharField(max_length=100, unique=True, db_index=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    rotated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = 'api_usednonce'
-        indexes = [
-            models.Index(fields=['timestamp']),
-        ]
+        ordering = ["-version"]
+        indexes = [models.Index(fields=["label", "active"])]
 
     def __str__(self):
-        return self.nonce
+        return f"{self.label} v{self.version} (active={self.active})"
 
-    @classmethod
-    def cleanup_expired_nonces(cls, hours=24):
-        """Remove nonces older than specified hours to prevent table growth"""
-        cutoff = timezone.now() - timedelta(hours=hours)
-        deleted, _ = cls.objects.filter(timestamp__lt=cutoff).delete()
-        return deleted
 
-    @classmethod
-    def is_nonce_valid(cls, nonce, max_age_seconds=300):
-        """
-        Check if nonce is valid:
-        1. Not already used
-        2. Within acceptable time window (default 5 minutes)
-        """
-        # Check if already used
-        if cls.objects.filter(nonce=nonce).exists():
-            return False, "Nonce already used"
-            
-        # For timestamp-based nonces, validate age
-        try:
-            # Assuming nonce format includes timestamp (implement based on your nonce format)
-            # This is a placeholder - implement based on your nonce generation strategy
-            return True, "Valid"
-        except Exception:
-            return True, "Valid"  # Fallback for non-timestamp nonces
+class KeyRotationLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    old_key = models.ForeignKey(MiddlewareKey, null=True, blank=True, on_delete=models.SET_NULL, related_name="old_key_logs")
+    new_key = models.ForeignKey(MiddlewareKey, null=True, blank=True, on_delete=models.SET_NULL, related_name="new_key_logs")
+    reason = models.TextField(null=True, blank=True)
+    rotated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-rotated_at"]
+
+
+class UsedNonce(models.Model):
+    """
+    Stores nonces to prevent replay. Unique constraint prevents reuse.
+    Optionally you may add TTL cleanup job (cron) to delete old nonces.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nonce = models.CharField(max_length=256, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["nonce"])]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.nonce} @ {self.created_at.isoformat()}"
 
 
 class TransactionMetadata(models.Model):
-    """Store metadata for each transaction passing through the middleware"""
-    
-    # Core identifiers
-    transaction_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    
-    # Timing information
-    timestamp = models.DateTimeField(auto_now_add=True)
-    processing_time_ms = models.FloatField(null=True, blank=True, help_text="Processing time in milliseconds")
-    
-    # Client information
-    client_ip = models.GenericIPAddressField(help_text="Client IP address")
-    client_public_key_hash = models.CharField(max_length=64, help_text="SHA256 hash of client public key")
-    
-    # Request details
-    nonce = models.CharField(max_length=255, db_index=True)
-    target_url = models.CharField(max_length=500, help_text="Target downstream URL")
-    payload_hash = models.CharField(max_length=64, help_text="SHA256 hash of transaction payload")
-    payload_size_bytes = models.IntegerField(default=0, help_text="Size of encrypted payload in bytes")
-    
-    # Cryptographic details
-    session_key_hash = models.CharField(max_length=64, help_text="SHA256 hash of session key")
-    middleware_signature = models.TextField(help_text="Middleware signature for this transaction")
-    client_signature_verified = models.BooleanField(default=False)
-    
-    # Response details  
-    status_code = models.IntegerField(help_text="HTTP status code returned")
-    downstream_response_time_ms = models.FloatField(null=True, blank=True, help_text="Downstream API response time")
-    response_size_bytes = models.IntegerField(default=0, help_text="Size of response in bytes")
-    
-    # Error handling
-    error_message = models.TextField(null=True, blank=True, help_text="Error message if transaction failed")
-    error_step = models.CharField(max_length=50, null=True, blank=True, help_text="Step where error occurred")
-    
-    # Audit trail
+    """
+    Per-transaction metadata (one row per transaction id).
+    Keep fields minimal; store details as JSON for admin display.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    transaction_id = models.CharField(max_length=128, unique=True, db_index=True)
+    client_ip = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+    processing_time_ms = models.FloatField(null=True, blank=True)
+    payload_size_bytes = models.IntegerField(null=True, blank=True)
+    session_key_hash = models.CharField(max_length=128, null=True, blank=True, help_text="SHA256 of session key (for audit only)")
+    client_signature_verified = models.BooleanField(default=False)
+    middleware_signature = models.TextField(null=True, blank=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    response_size_bytes = models.IntegerField(null=True, blank=True)
+    downstream_response_time_ms = models.FloatField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)
+    error_step = models.CharField(max_length=128, null=True, blank=True)
+    details = models.JSONField(null=True, blank=True)
+
     class Meta:
-        db_table = 'api_transaction_metadata'
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['timestamp']),
-            models.Index(fields=['client_ip']),
-            models.Index(fields=['nonce']),
-            models.Index(fields=['status_code']),
-            models.Index(fields=['target_url']),
-        ]
-    
+        ordering = ["-created_at"]
+
     def __str__(self):
-        return f"Transaction {self.transaction_id} - {self.status_code}"
-    
-    @classmethod
-    def cleanup_old_metadata(cls, days=30):
-        """Remove metadata older than specified days"""
-        cutoff = timezone.now() - timedelta(days=days)
-        deleted, _ = cls.objects.filter(timestamp__lt=cutoff).delete()
-        return deleted
-    
-    @property
-    def is_successful(self):
-        return 200 <= self.status_code < 300
-    
-    @property
-    def processing_time_seconds(self):
-        if self.processing_time_ms:
-            return self.processing_time_ms / 1000.0
-        return None
-    
-# models.py (add these model definitions to the app that contains views.py)
-import uuid
-from django.db import models
+        return f"{self.transaction_id} ({self.created_at.isoformat()})"
+
 
 class AuditLog(models.Model):
     """
-    Persistent audit log entry keyed by transaction_id.
-    Minimal but sufficient for admin display and tamper-evidence.
+    Tamper-evident audit logs grouped by transaction_id.
+    Each record stores prev_hash and record_hash to form a chain.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    transaction_id = models.CharField(max_length=128, db_index=True, help_text="Middleware transaction UUID")
-    event_type = models.CharField(max_length=100, help_text="Type of event (e.g., payload_decrypted)")
-    details = models.JSONField(null=True, blank=True, help_text="Structured details for admin inspection")
-    actor = models.CharField(max_length=100, blank=True, null=True, help_text="Optional actor (middleware, bank, client)")
+    transaction_id = models.CharField(max_length=128, db_index=True)
+    event_type = models.CharField(max_length=100)
+    details = models.JSONField(null=True, blank=True)
+    actor = models.CharField(max_length=64, default="middleware")
     timestamp = models.DateTimeField(auto_now_add=True)
-    prev_hash = models.CharField(max_length=128, blank=True, null=True, help_text="Previous record hash for chain")
-    record_hash = models.CharField(max_length=128, blank=True, null=True, help_text="SHA256 hash of this record + prev_hash")
+    prev_hash = models.CharField(max_length=128, null=True, blank=True)
+    record_hash = models.CharField(max_length=128, null=True, blank=True)
 
     class Meta:
-        ordering = ["-timestamp"]
+        ordering = ["transaction_id", "timestamp"]
         indexes = [
             models.Index(fields=["transaction_id", "-timestamp"]),
         ]
 
     def __str__(self):
         return f"{self.transaction_id} | {self.event_type} @ {self.timestamp.isoformat()}"
-

@@ -125,7 +125,7 @@ class CryptoUtils:
             # 3. AES-GCM decrypt inner payload
             plaintext = CryptoUtils.decrypt(ciphertext_b64, iv_b64, session_key)
             payload = json.loads(plaintext.decode())
-            print("DEBUG: [CryptoPreprocess] Decrypted payload:", payload)
+            print("DEBUG: [CryptoPreprocess] Decrypted payload:", payload.keys())
 
             # 4. Signature checks
             verify_payload_with_middleware_signature = {
@@ -149,7 +149,8 @@ class CryptoUtils:
             from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
             try:
                 signature_length = len(middleware_sig)
-                print(f"DEBUG: [CryptoPreprocess] Middleware signature length: {signature_length}")
+
+                print(f"DEBUG: [CryptoPreprocess] Middleware signature {middleware_sig} length: {signature_length}")
                 if not isinstance(middleware_pub, EllipticCurvePublicKey):
                     raise TypeError("Middleware public key is not an Elliptic Curve public key")
                 middleware_pub.verify(
