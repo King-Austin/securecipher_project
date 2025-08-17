@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # Third-party apps
+    'encrypted_model_fields',
     'rest_framework',
     'corsheaders',
     
@@ -136,6 +137,8 @@ DATABASES = {
     }
 }
 
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -188,7 +191,7 @@ ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
 
 # SecureCipher Logging Configuration
 
-FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')
+FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', 'ET9noll4G29aD7dJVBJKU4esoJpKrSawQNl-p5qPTw8=').encode()  # Key for encrypted fields
 
 # Define routing table for downstream services
 from api.config import DEFAULT_ROUTING_TABLE

@@ -28,9 +28,6 @@ DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 
 ALLOWED_HOSTS = [
-    'localhost', 
-    '127.0.0.1',
-    '0.0.0.0', 
     '*'
     ]
 
@@ -109,6 +106,7 @@ DATABASES = {
         'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
     }
 }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

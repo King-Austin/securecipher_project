@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Shield, AlertCircle, Mail, Loader2 } from 'lucide-react';
 import * as SecureKeyManager from '../utils/SecureKeyManager';
 
@@ -128,7 +128,13 @@ export default function Login() {
                     'Login'
                   )}
                 </button>
-              </form>
+            </form>
+                <p className="mt-4 text-center text-sm text-gray-600">
+                  Don't have an account?{' '}
+                  <Link to="/register" className="font-medium text-green-600 hover:text-green-500">
+                    Sign Up
+                  </Link>
+                </p>
             </>
           )}
         </div>
