@@ -6,8 +6,8 @@ export const MIDDLEWARE_BASE_URL = 'https://securecipher-middleware.onrender.com
 
 // API Endpoints
 export const API_ENDPOINTS = {
-  MIDDLEWARE_GATEWAY: `${MIDDLEWARE_BASE_URL}/api/secure/gateway/`,
-  MIDDLEWARE_PUBLIC_KEY: `${MIDDLEWARE_BASE_URL}/api/middleware/public-key/`,
+  MIDDLEWARE_GATEWAY: `${MIDDLEWARE_BASE_URL}/api/gateway/`,
+  MIDDLEWARE_PUBLIC_KEY: `${MIDDLEWARE_BASE_URL}/api/public-key/`,
 };
 
 // Validation
