@@ -125,12 +125,12 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
     console.log('[Session] Deriving session key...');
     const sessionKey = await SecureKeyManager.deriveSessionKey(sharedSecret);
     console.log('[Session] Session key derived:', sessionKey);
+    //print the hex of the session key in plain text not object
+
 
 
     // Step 5: Prepare payload to sign
-    const timestamp = Math.floor(Date.now() / 1000);
     const nonce = crypto.randomUUID();
-    console.log('[Payload] Timestamp:', timestamp, 'Nonce:', nonce);
 
     const signPayloadDict = {
         transaction_data: payload,
@@ -142,6 +142,9 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
 
     const clientSignature = await SecureKeyManager.signTransaction(signPayloadDict, identityKeyPair.privateKey);
     console.log('[Payload] Client signature (base64):', clientSignature);
+    const timestamp = Math.floor(Date.now() / 1000);
+    console.log('[Payload] Timestamp:', timestamp, 'Nonce:', nonce);
+
 
     // Step 6: Build secure payload
     const securePayload = {
@@ -150,6 +153,7 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
         client_signature: clientSignature,
         client_public_key: publicKeyPem,
         nonce,
+        timestamp: timestamp
     };
     console.log('[Payload] Secure payload (before encryption):', securePayload);
 

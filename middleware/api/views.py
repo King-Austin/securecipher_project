@@ -1,328 +1,38 @@
-import os
+# views.py
+"""
+Refactored SecureCipher middleware views (logger removed per request).
+- Delegates cryptography to crypto_engine
+- Key lifecycle to key_manager (DB-backed)
+- Transaction processing to transaction_processor
+- Audit persistence to audit_logs (DB-backed)
+- Transaction metadata persisted via transaction_metadata
+- Downstream HTTP handled by downstream_handler
+
+This file intentionally includes verbose prints for debugging (can be switched back to logger later).
+"""
+
 import base64
 import json
-import hashlib
-import traceback
 import time
-import logging
+import traceback
 import uuid
-from typing import Tuple, Dict, Any, Optional
-from functools import wraps
 
+from django.db import IntegrityError
+from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.conf import settings
-from django.shortcuts import render
 
-from api.models import MiddlewareKey, UsedNonce, TransactionMetadata
-from scripts import generate_keypair
-from .downstream_handler import (
-    send_downstream_request,
-    get_bank_public_key,
-    get_target_url
-)
+# App modules (these must exist in the same app package)
+from modules import crypto_engine
+from modules import key_manager
+from modules import transaction_processor
+from modules import transaction_metadata as tx_meta
+from modules import audit_logs
+from modules import tls_middleware
+from modules.downstream_handler import send_downstream_request, get_bank_public_key, get_target_url
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
-
-# Security logger
-security_logger = logging.getLogger('securecipher.security')
-
-# Constants for security
-SESSION_KEY_INFO = b'secure-cipher-session-key'
-AES_GCM_IV_SIZE = 12
-ECDH_CURVE = ec.SECP384R1()
-TIMESTAMP_WINDOW_SECONDS = 300  # 5 minutes
-SESSION_KEY_LENGTH = 32
-
-
-def hash_data(data: str) -> str:
-    """Generate SHA256 hash of data"""
-    return hashlib.sha256(data.encode() if isinstance(data, str) else data).hexdigest()
-
-
-def create_transaction_metadata(
-    transaction_id: str,
-    client_ip: str,
-    start_time: float,
-    **kwargs
-) -> TransactionMetadata:
-    """Create and save transaction metadata"""
-    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-    
-    metadata = TransactionMetadata(
-        transaction_id=transaction_id,
-        client_ip=client_ip,
-        processing_time_ms=processing_time,
-        **kwargs
-    )
-    metadata.save()
-    return metadata
-
-
-def update_transaction_metadata(
-    transaction_id: str,
-    **kwargs
-) -> None:
-    """Update existing transaction metadata"""
-    try:
-        metadata = TransactionMetadata.objects.get(transaction_id=transaction_id)
-        for key, value in kwargs.items():
-            setattr(metadata, key, value)
-        metadata.save()
-    except TransactionMetadata.DoesNotExist:
-        print(f"WARNING: Transaction metadata not found for ID: {transaction_id}")
-
-
-def log_transaction_metadata(func):
-    """
-    Decorator to automatically log transaction metadata for middleware functions
-    """
-    @wraps(func)
-    def wrapper(request, *args, **kwargs):
-        transaction_id = str(uuid.uuid4())
-        start_time = time.time()
-        client_ip = request.META.get('REMOTE_ADDR', 'unknown')
-        
-        # Store transaction context in request for access in the view
-        request.transaction_context = {
-            'transaction_id': transaction_id,
-            'start_time': start_time,
-            'client_ip': client_ip
-        }
-        
-        try:
-            response = func(request, *args, **kwargs)
-            
-            # Log successful transaction
-            if hasattr(request, 'transaction_metadata'):
-                request.transaction_metadata.update({
-                    'status_code': response.status_code,
-                    'response_size_bytes': len(str(response.data)) if response.data else 0
-                })
-                create_transaction_metadata(
-                    transaction_id=transaction_id,
-                    client_ip=client_ip,
-                    start_time=start_time,
-                    **request.transaction_metadata
-                )
-            
-            return response
-            
-        except Exception as e:
-            # Log failed transaction
-            error_metadata = getattr(request, 'transaction_metadata', {})
-            error_metadata.update({
-                'status_code': 500,
-                'error_message': str(e),
-                'error_step': getattr(request, 'current_step', 'unknown')
-            })
-            
-            create_transaction_metadata(
-                transaction_id=transaction_id,
-                client_ip=client_ip,
-                start_time=start_time,
-                **error_metadata
-            )
-            
-            raise
-    
-    return wrapper
-
-
-def get_or_create_active_key():
-    """Get active middleware key or create one if it doesn't exist"""
-    try:
-        return MiddlewareKey.objects.get(label="active")
-    except MiddlewareKey.DoesNotExist:
-        print("DEBUG: No active middleware key found, generating new one...")
-        generate_keypair.generate()
-        return MiddlewareKey.objects.get(label="active")
-
-
-def verify_signature(payload_dict, signature_b64, public_key_str):
-    """
-    Unified ECDSA signature verification for both PEM and DER/BASE64 public keys.
-    """
-    try:
-        # Load public key (PEM or DER/BASE64)
-        if "-----BEGIN PUBLIC KEY-----" in public_key_str:
-            public_key = serialization.load_pem_public_key(public_key_str.encode())
-        else:
-            public_key = serialization.load_der_public_key(base64.b64decode(public_key_str))
-
-        # Canonical JSON encoding
-        message = json.dumps(payload_dict, separators=(',', ':'), sort_keys=True).encode()
-        signature_bytes = base64.b64decode(signature_b64)
-
-        # If signature is raw (r||s), convert to DER
-        if len(signature_bytes) == 96:
-            r = int.from_bytes(signature_bytes[:48], byteorder='big')
-            s = int.from_bytes(signature_bytes[48:], byteorder='big')
-            signature_bytes = encode_dss_signature(r, s)
-
-        public_key.verify(signature_bytes, message, ec.ECDSA(hashes.SHA256()))
-        return True
-    except Exception as e:
-        print(f"DEBUG: Signature verification failed: {e}")
-        return False
-
-
-def derive_session_key(shared_secret: bytes) -> bytes:
-    """Derive session key from ECDH shared secret using HKDF"""
-    return HKDF(
-        algorithm=hashes.SHA384(),
-        length=SESSION_KEY_LENGTH,
-        salt=b'',
-        info=SESSION_KEY_INFO
-    ).derive(shared_secret)
-
-
-def create_ephemeral_keypair() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
-    """Generate ephemeral ECDH keypair and return private key + DER public key"""
-    private_key = ec.generate_private_key(ECDH_CURVE)
-    public_key = private_key.public_key()
-    public_key_der = public_key.public_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return private_key, public_key_der
-
-
-def encrypt_payload(payload: Dict[str, Any], session_key: bytes) -> Dict[str, str]:
-    """Encrypt payload using AES-GCM and return base64-encoded envelope"""
-    aesgcm = AESGCM(session_key)
-    iv = os.urandom(AES_GCM_IV_SIZE)
-    payload_json = json.dumps(payload, separators=(',', ':'), sort_keys=True)
-    ciphertext = aesgcm.encrypt(iv, payload_json.encode(), None)
-    
-    return {
-        "iv": base64.b64encode(iv).decode(),
-        "ciphertext": base64.b64encode(ciphertext).decode()
-    }
-
-
-def decrypt_payload(envelope: Dict[str, str], session_key: bytes) -> Dict[str, Any]:
-    """Decrypt AES-GCM payload from base64-encoded envelope"""
-    aesgcm = AESGCM(session_key)
-    iv = base64.b64decode(envelope["iv"])
-    ciphertext = base64.b64decode(envelope["ciphertext"])
-    decrypted_bytes = aesgcm.decrypt(iv, ciphertext, None)
-    return json.loads(decrypted_bytes.decode())
-
-
-def establish_downstream_session(bank_public_key_pem: str) -> Tuple[bytes, bytes, bytes]:
-    """
-    Establish secure session with downstream banking API
-    Returns: (session_key, ephemeral_public_der, ephemeral_private_key)
-    """
-    # Generate ephemeral keypair for downstream
-    ephemeral_private, ephemeral_public_der = create_ephemeral_keypair()
-    
-    # Load bank public key and perform ECDH
-    bank_public_key = serialization.load_pem_public_key(bank_public_key_pem.encode())
-    if not isinstance(bank_public_key.curve, ec.SECP384R1):
-        raise ValueError("Bank public key must use SECP384R1 curve")
-    
-    # Derive shared secret and session key
-    shared_secret = ephemeral_private.exchange(ec.ECDH(), bank_public_key)
-    session_key = derive_session_key(shared_secret)
-    
-    print(f"DEBUG: Downstream session established, session_key: {session_key.hex()}")
-    return session_key, ephemeral_public_der, shared_secret
-
-
-def create_downstream_envelope(payload: Dict[str, Any], bank_public_key_pem: str) -> Tuple[Dict[str, str], bytes]:
-    """
-    Create encrypted envelope for downstream banking API
-    Returns: (envelope, session_key)
-    """
-    session_key, ephemeral_public_der, _ = establish_downstream_session(bank_public_key_pem)
-    
-    # Create encrypted envelope
-    envelope = encrypt_payload(payload, session_key)
-    envelope["ephemeral_pubkey"] = base64.b64encode(ephemeral_public_der).decode()
-    
-    print(f"DEBUG: Downstream envelope created: {list(envelope.keys())}")
-    return envelope, session_key
-
-
-def validate_timestamp(timestamp: Optional[int]) -> None:
-    """Validate timestamp is within acceptable window"""
-    if timestamp:
-        current_time = int(time.time())
-        if abs(current_time - timestamp) > TIMESTAMP_WINDOW_SECONDS:
-            raise ValueError(f"Request timestamp outside acceptable window: {timestamp} vs {current_time}")
-
-
-def validate_nonce(nonce: str) -> None:
-    """Validate and store nonce to prevent replay attacks"""
-    if not nonce:
-        raise ValueError("Nonce is required.")
-    
-    is_valid, message = UsedNonce.is_nonce_valid(nonce)
-    if not is_valid:
-        raise ValueError(f"Nonce validation failed: {message}")
-    
-    UsedNonce.objects.create(nonce=nonce)
-    print("DEBUG: Nonce validated and stored.")
-
-
-def sign_payload(payload_dict: Dict[str, Any], private_key_pem: str) -> str:
-    """Sign payload using ECDSA with SHA256"""
-    private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
-    message = json.dumps(payload_dict, separators=(',', ':'), sort_keys=True).encode()
-    signature = private_key.sign(message, ec.ECDSA(hashes.SHA256()))
-    return base64.b64encode(signature).decode()
-
-
-def process_downstream_response(response_data: Dict[str, Any], downstream_session_key: bytes, status_code: int) -> Tuple[Dict[str, Any], int]:
-    """
-    Process and validate response from downstream banking API
-    Returns: (business_data, status_code)
-    """
-    print(f"DEBUG: Processing downstream response with keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'Not a dict'}")
-    
-    if not isinstance(response_data, dict):
-        print("ERROR: Banking API response is not a dictionary")
-        return response_data, status_code
-    
-    # Check for encrypted response format
-    if "iv" not in response_data or "ciphertext" not in response_data:
-        print("ERROR: Missing iv or ciphertext in banking API response")
-        return response_data, status_code
-    
-    try:
-        # Decrypt the banking API response
-        banking_server_response = decrypt_payload(response_data, downstream_session_key)
-        print(f"DEBUG: Banking server response decrypted: {list(banking_server_response.keys()) if isinstance(banking_server_response, dict) else 'Not a dict'}")
-        
-        # Extract structured response components
-        business_payload = banking_server_response.get('payload', {})
-        server_signature = banking_server_response.get('signature')
-        server_pubkey = banking_server_response.get('server_pubkey')
-        
-        # Verify server signature if provided
-        if server_signature and server_pubkey:
-            print("DEBUG: Verifying server signature...")
-            try:
-                if verify_signature(business_payload, server_signature, server_pubkey):
-                    print("DEBUG: Server signature verified successfully")
-                else:
-                    print("WARNING: Server signature verification failed")
-            except Exception as e:
-                print(f"WARNING: Server signature verification error: {e}")
-        else:
-            print("DEBUG: No signature provided, skipping verification")
-        
-        return business_payload, status_code
-        
-    except Exception as e:
-        print(f"ERROR: Failed to process downstream response: {e}")
-        return {"error": f"Response processing failed: {str(e)}"}, 500
+# DB models (persistent storage)
+from .models import MiddlewareKey, UsedNonce, TransactionMetadata, AuditLog
 
 
 def index_view(request):
@@ -332,247 +42,230 @@ def index_view(request):
 
 @api_view(["GET"])
 def get_public_key(request):
-    print("DEBUG: Client requesting server public key...")
-    middleware_key = get_or_create_active_key()
-    print(f"DEBUG: Server public key retrieved: {middleware_key.public_key_pem[:50]}...")
-    return Response({"public_key": middleware_key.public_key_pem})
+    """
+    Return middleware public key PEM (persistent via MiddlewareKey).
+    """
+    try:
+        mk = key_manager.get_active_middleware_key()
+        public_pem = mk.public_key_pem
+        print("[GET_PUBLIC_KEY] Returning public key (truncated):", (public_pem[:80] + "...") if public_pem else "None")
+        return Response({"public_key": public_pem})
+    except Exception as e:
+        # logger.exception replaced with print + traceback
+        print("[GET_PUBLIC_KEY] ERROR retrieving middleware public key:", str(e))
+        traceback.print_exc()
+        return Response({"error": "Failed to retrieve public key"}, status=500)
 
 
 @api_view(["POST"])
-@log_transaction_metadata
 def secure_gateway(request):
-    print("DEBUG: [STEP 0] SecureCipher gateway called")
-    
-    session_key = None
-    transaction_id = request.transaction_context['transaction_id']
-    start_time = request.transaction_context['start_time']
-    client_ip = request.transaction_context['client_ip']
-    
-    # Initialize metadata collection
-    request.transaction_metadata = {}
-    
-    print(f"DEBUG: [STEP 0] Transaction ID: {transaction_id}")
-    print(f"DEBUG: [STEP 0] Request from IP: {client_ip}")
-    
+    """
+    Main SecureCipher gateway view.
+    - Accepts outer AES-GCM envelope with client's ephemeral_pubkey (base64)
+    - Derives per-request session key using server private key and client ephemeral pubkey
+    - Decrypts inner payload, validates timestamp/nonce, verifies client signature
+    - Signs forwarded payload with middleware key, sends to downstream bank (new ephemeral per-request)
+    - Decrypts downstream response, optionally verifies server signature
+    - Re-encrypts business payload for client and returns.
+    """
+    transaction_id = str(uuid.uuid4())
+    start_time = time.time()
+    client_ip = request.META.get("REMOTE_ADDR", "unknown")
+
+    print(f"[SECURE_GATEWAY] NEW tx={transaction_id} from {client_ip}")
+    audit_logs.log_event(transaction_id, "request_received", {"client_ip": client_ip})
+
+    session_key = None  # ephemeral per-request; never persisted raw
     try:
-        # --- Step 1: Parse and validate outer envelope ---
-        request.current_step = "envelope_parsing"
-        print("DEBUG: [STEP 1] Parsing and validating outer envelope...")
-        
+        # --- Parse outer envelope ---
         encrypted_payload = request.data
-        
-        # Input validation
+        print("[STEP 1] Received envelope keys:", list(encrypted_payload.keys()) if isinstance(encrypted_payload, dict) else "invalid")
+        audit_logs.log_event(transaction_id, "envelope_received", {"keys": list(encrypted_payload.keys()) if isinstance(encrypted_payload, dict) else []})
+
         if not isinstance(encrypted_payload, dict):
-            raise ValueError("Invalid payload format: must be JSON object")
-            
-        print(f"DEBUG: [STEP 1] Incoming payload keys: {list(encrypted_payload.keys())}")
+            raise ValueError("Invalid envelope format: expected JSON object")
+
         client_ephemeral_pub_b64 = encrypted_payload.get("ephemeral_pubkey")
-        ciphertext_b64 = encrypted_payload.get("ciphertext")
         iv_b64 = encrypted_payload.get("iv")
-        
-        # Validate required fields
-        if not (client_ephemeral_pub_b64 and ciphertext_b64 and iv_b64):
-            print("DEBUG: [STEP 1] Missing required envelope fields.")
-            raise ValueError("Missing required envelope fields.")
-            
-        # Validate base64 format and lengths
+        ciphertext_b64 = encrypted_payload.get("ciphertext")
+
+        if not (client_ephemeral_pub_b64 and iv_b64 and ciphertext_b64):
+            print("[STEP 1] ERROR: Missing required envelope fields")
+            raise ValueError("Missing required envelope fields (ephemeral_pubkey/iv/ciphertext)")
+
+        # decode and basic checks
         try:
-            ephemeral_der = base64.b64decode(client_ephemeral_pub_b64)
-            ciphertext = base64.b64decode(ciphertext_b64)
+            client_ephemeral_der = base64.b64decode(client_ephemeral_pub_b64)
             iv = base64.b64decode(iv_b64)
-            
-            # Collect payload size metadata
-            request.transaction_metadata['payload_size_bytes'] = len(ciphertext)
-            
-            # Validate lengths
-            if len(iv) != 12:  # AES-GCM IV should be 12 bytes
-                raise ValueError("Invalid IV length")
-            if len(ephemeral_der) < 50 or len(ephemeral_der) > 200:  # Reasonable bounds for P-384
-                raise ValueError("Invalid ephemeral key length")
-                
+            ciphertext = base64.b64decode(ciphertext_b64)
+            print(f"[STEP 1] Decoded sizes - ephemeral_pub: {len(client_ephemeral_der)} bytes, iv: {len(iv)} bytes, ciphertext: {len(ciphertext)} bytes")
+            audit_logs.log_event(transaction_id, "envelope_decoded", {"ephemeral_pub_len": len(client_ephemeral_der), "iv_len": len(iv), "ciphertext_len": len(ciphertext)})
+            tx_meta.create_transaction_metadata(transaction_id, client_ip=client_ip, payload_size_bytes=len(ciphertext), start_time=start_time)
         except Exception as e:
-            print(f"DEBUG: [STEP 1] Base64 decode error: {e}")
-            raise ValueError("Invalid base64 encoding in payload")
+            print("[STEP 1] Base64 decode error:", str(e))
+            traceback.print_exc()
+            raise ValueError("Invalid base64 encoding in envelope")
 
-        # --- Step 2: Derive session key using ECDH ---
-        request.current_step = "ecdh_derivation"
-        print("DEBUG: [STEP 2] Deriving session key using ECDH...")
+        # --- Derive session key (ECDH) using middleware private key ---
+        mk = key_manager.get_active_middleware_key()
+        print("[STEP 2] Loaded middleware key:", f"label={mk.label} v{mk.version} active={mk.active}")
+        audit_logs.log_event(transaction_id, "middleware_key_loaded", {"label": mk.label, "version": mk.version})
+
+        # derive session key: key_manager handles private key loading and ECDH
+        session_key = key_manager.derive_session_key(client_ephemeral_der)
+        session_key_hash = crypto_engine.hash_data(session_key)
+        print("[STEP 2] Derived session key hash:", session_key_hash)
+        audit_logs.log_event(transaction_id, "session_key_derived", {"session_key_hash": session_key_hash})
+        tx_meta.update_transaction_metadata(transaction_id, session_key_hash=session_key_hash)
+
+        # --- Decrypt inner payload ---
+        inner_envelope = {"iv": iv_b64, "ciphertext": ciphertext_b64}
         try:
-            middleware_key = get_or_create_active_key()
-            print(f"DEBUG: [STEP 2] Middleware key loaded: {middleware_key}")
-            
-            middleware_private_key = serialization.load_pem_private_key(
-                middleware_key.private_key_pem.encode(), password=None
-            )
-            
-            client_ephemeral_pub_der = base64.b64decode(client_ephemeral_pub_b64)
-            print(f"DEBUG: [STEP 2] Client ephemeral pubkey DER: {client_ephemeral_pub_der.hex()}")
-            
-            client_ephemeral_pub = serialization.load_der_public_key(client_ephemeral_pub_der)
-            
-            # Validate that it's the correct curve
-            if not isinstance(client_ephemeral_pub.curve, ec.SECP384R1):
-                raise ValueError("Invalid elliptic curve. Expected SECP384R1.")
-                
-            shared_key = middleware_private_key.exchange(ec.ECDH(), client_ephemeral_pub)
-            print(f"DEBUG: [STEP 2] Shared key: {shared_key.hex()}")
-            
-            session_key = derive_session_key(shared_key)
-            print(f"DEBUG: [STEP 2] Session key derived: {session_key.hex()}")
-            
-            # Store session key hash for metadata
-            request.transaction_metadata['session_key_hash'] = hash_data(session_key)
-            
+            inner_payload = crypto_engine.aes256gcm_decrypt(inner_envelope, session_key)
+            print("[STEP 3] Inner payload decrypted. Keys:", list(inner_payload.keys()))
+            audit_logs.log_event(transaction_id, "payload_decrypted", {"inner_keys": list(inner_payload.keys())})
+            tx_meta.update_transaction_metadata(transaction_id, details={"inner_keys": list(inner_payload.keys())})
         except Exception as e:
-            print(f"DEBUG: [STEP 2] ECDH derivation failed: {e}")
-            raise ValueError(f"Key exchange failed: {str(e)}")
+            print("[STEP 3] Decryption failed:", str(e))
+            traceback.print_exc()
+            raise ValueError(f"Payload decryption failed: {e}")
 
-        # --- Step 3: Decrypt AES-GCM payload ---
-        request.current_step = "payload_decryption"
-        print("DEBUG: [STEP 3] Decrypting AES-GCM payload...")
-        try:
-            client_envelope = {
-                "iv": iv_b64,
-                "ciphertext": ciphertext_b64
-            }
-            inner_payload = decrypt_payload(client_envelope, session_key)
-            print(f"DEBUG: [STEP 3] Inner payload: {inner_payload}")
-        except Exception as e:
-            print(f"DEBUG: [STEP 3] Decryption failed: {e}")
-            raise ValueError(f"Payload decryption failed: {str(e)}")
-
-        # --- Step 4: Extract and validate inner payload fields ---
-        request.current_step = "payload_validation"
-        print("DEBUG: [STEP 4] Extracting and validating inner payload fields...")
-        target_url = inner_payload.get("target")
-        transaction_data = inner_payload.get("transaction_data")
-        client_signature = inner_payload.get("client_signature")
-        client_public_key_b64 = inner_payload.get("client_public_key")
+        # --- Validate timestamp & nonce ---
         nonce = inner_payload.get("nonce")
         timestamp = inner_payload.get("timestamp")
-        print(f"DEBUG: [STEP 4] target_url: {target_url}, nonce: {nonce}, timestamp: {timestamp}")
+        print(f"[STEP 4] Received nonce={nonce} timestamp={timestamp}")
+        audit_logs.log_event(transaction_id, "timestamp_nonce_received", {"nonce": nonce, "timestamp": time.ctime(timestamp) if timestamp else "None"})
+        # Validate timestamp (may raise)
+        crypto_engine.validate_timestamp(timestamp)
+        tx_meta.update_transaction_metadata(transaction_id, request_timestamp=timestamp)
 
-        # Store metadata from inner payload
-        request.transaction_metadata.update({
-            'nonce': nonce or '',
-            'target_url': target_url or '',
-            'payload_hash': hash_data(json.dumps(transaction_data, sort_keys=True) if transaction_data else ''),
-            'client_public_key_hash': hash_data(client_public_key_b64 or '')
-        })
+        # Validate nonce using persistent UsedNonce model
+        if nonce is None:
+            raise ValueError("Nonce missing in inner payload")
 
-        # Enhanced nonce validation
-        if not nonce:
-            print("DEBUG: [STEP 4] Nonce is missing!")
-            raise ValueError("Nonce is required.")
-        validate_timestamp(timestamp)
-        validate_nonce(nonce)
+        try:
+            # Attempt create; unique constraint ensures replay protection
+            UsedNonce.objects.create(nonce=nonce)
+            print("[STEP 4] Nonce stored successfully.")
+            audit_logs.log_event(transaction_id, "nonce_stored", {"nonce_trunc": nonce[:64]})
+        except IntegrityError:
+            print("[STEP 4] Nonce replay detected:", nonce)
+            audit_logs.log_event(transaction_id, "nonce_replay_detected", {"nonce_trunc": nonce[:64]})
+            raise ValueError("Nonce already used (replay detected)")
 
-        # --- Step 5: Verify client signature ---
-        request.current_step = "signature_verification"
-        print("DEBUG: [STEP 5] Verifying client signature...")
-        sign_payload_dict = {
-            "transaction_data": transaction_data,
-        }
-        signature_valid = verify_signature(sign_payload_dict, client_signature, client_public_key_b64)
-        request.transaction_metadata['client_signature_verified'] = signature_valid
-        
-        if not signature_valid:
-            print("DEBUG: [STEP 5] Client signature verification failed.")
-            error_response = {"error": "Client signature verification failed"}
-            encrypted_response = encrypt_payload(error_response, session_key)
-            return Response(encrypted_response, status=400)
-        
-        
-        print("DEBUG: [STEP 5] Client signature verified.")
+        # --- Verify client signature ---
+        transaction_data = inner_payload.get("transaction_data")
+        client_signature = inner_payload.get("client_signature")
+        client_public_key = inner_payload.get("client_public_key")  # PEM or base64 DER allowed
 
-        # --- Step 6: Add middleware signature/public key ---
-        request.current_step = "middleware_signing"
-        print("DEBUG: [STEP 6] Adding middleware signature and public key...")
+        if not (transaction_data and client_signature and client_public_key):
+            raise ValueError("Missing transaction_data / client_signature / client_public_key")
+
+        print("[STEP 5] Verifying client signature...")
+        verify_payload = {"transaction_data": transaction_data}
+        client_sig_valid = crypto_engine.ecdsa_verify(verify_payload, client_signature, client_public_key)
+        print("[STEP 5] Client signature verification result:", client_sig_valid)
+        audit_logs.log_event(transaction_id, "client_signature_verified", {"valid": client_sig_valid})
+        tx_meta.update_transaction_metadata(transaction_id, client_signature_verified=client_sig_valid)
+
+        if not client_sig_valid:
+            err = {"error": "Client signature verification failed"}
+            encrypted_err = crypto_engine.aes256gcm_encrypt(err, session_key)
+            print("[STEP 5] Invalid client signature; returning encrypted error")
+            return Response(encrypted_err, status=400)
+
+        # --- Middleware signs forwarded payload ---
         forwarded_payload = {
             "transaction_data": transaction_data,
             "client_signature": client_signature,
-            "client_public_key": client_public_key_b64,
-            "nonce": nonce
+            "client_public_key": client_public_key,
+            "nonce": nonce,
         }
-        middleware_signature = sign_payload(forwarded_payload, middleware_key.private_key_pem)
-        print(f"DEBUG: [STEP 6] Middleware signature: {middleware_signature}")
-        
-        # Store middleware signature in metadata
-        request.transaction_metadata['middleware_signature'] = middleware_signature
-        
-        middleware_public_key_der = base64.b64encode(
-            serialization.load_pem_public_key(middleware_key.public_key_pem.encode()).public_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-        ).decode()
-        print(f"DEBUG: [STEP 6] Middleware public key DER: {middleware_public_key_der}")
 
+        middleware_signature = crypto_engine.ecdsa_sign(forwarded_payload, mk.private_key_pem)
+        print(f"[STEP 6] Middleware signature created: signature {middleware_signature} (len):", len(middleware_signature))
+        audit_logs.log_event(transaction_id, "middleware_signed", {"signature_len": len(middleware_signature)})
+        tx_meta.update_transaction_metadata(transaction_id, middleware_signature=middleware_signature)
+
+        # Attach middleware public key PEM for downstream
+        middleware_public_pem = mk.public_key_pem
         forwarded_payload["middleware_signature"] = middleware_signature
-        forwarded_payload["middleware_public_key"] = middleware_public_key_der
+        forwarded_payload["middleware_public_key"] = middleware_public_pem
 
-        # --- Step 7: Create downstream envelope ---
-        request.current_step = "downstream_envelope"
-        print("DEBUG: [STEP 7] Creating downstream envelope...")
-        
-        downstream_envelope, downstream_session_key = create_downstream_envelope(
-            forwarded_payload, 
-            get_bank_public_key()
-        )
-        
-        print(f"DEBUG: [STEP 7] Downstream envelope created with keys: {list(downstream_envelope.keys())}")
+        # --- Encrypt and send to downstream bank ---
+        target = inner_payload.get("target")
+        if not target:
+            raise ValueError("Missing target in inner payload")
 
-        # --- Step 8: Route to downstream ---
-        request.current_step = "downstream_routing"
-        print("DEBUG: [STEP 8] Routing to downstream...")
-        downstream_url = get_target_url(target_url)
-        print(f"DEBUG: [STEP 8] Downstream URL: {downstream_url}")
-        
-        downstream_start_time = time.time()
-        response_data, status_code = send_downstream_request(
-            "POST", downstream_url, data=downstream_envelope
-        )
-        downstream_response_time = (time.time() - downstream_start_time) * 1000  # Convert to ms
-        
-        # Store downstream response metadata
-        request.transaction_metadata.update({
-            'status_code': status_code,
-            'downstream_response_time_ms': downstream_response_time
-        })
-        
-        print(f"DEBUG: [STEP 8] Downstream response status: {status_code}")
+        print(f"[STEP 7] Creating downstream envelope and sending to target='{target}'")
+        print("[STEP 7] Forwarded payload keys:", list(forwarded_payload.keys()))
+        audit_logs.log_event(transaction_id, "forwarding_to_downstream", {"target": target})
 
-        # --- Step 9: Process banking API response ---
-        request.current_step = "response_processing"
-        print("DEBUG: [STEP 9] Processing banking API response...")
-        
-        business_data, final_status = process_downstream_response(
-            response_data, 
-            downstream_session_key, 
-            status_code
-        )
-        
-        # Re-encrypt business data for frontend
-        frontend_response = encrypt_payload(business_data, session_key)
-        
-        # Update final metadata
-        request.transaction_metadata.update({
-            'status_code': final_status,
-            'response_size_bytes': len(str(frontend_response)) if frontend_response else 0
-        })
-        
-        print("DEBUG: [STEP 9] Business data re-encrypted for frontend")
-        return Response(frontend_response, status=final_status)
+        response_data, status_code, downstream_session_key = transaction_processor.encrypt_and_send_to_bank(forwarded_payload, target)
+        print("[STEP 7] Downstream response status:", status_code)
+        audit_logs.log_event(transaction_id, "downstream_response_received", {"status_code": status_code})
+        tx_meta.update_transaction_metadata(transaction_id, downstream_response_time_ms=(time.time() - start_time) * 1000)
 
-    except Exception as error:
-        print(f"DEBUG: [EXCEPTION] SecureCipher gateway exception: {error}")
-        traceback.print_exc()
-        
-        if session_key:
-            error_response = {"error": str(error)}
-            encrypted_response = encrypt_payload(error_response, session_key)
-            print("DEBUG: [EXCEPTION] Encrypted error response ready.")
-            return Response(encrypted_response, status=500)
+        # --- Process downstream response ---
+        business_payload = transaction_processor.handle_response_from_bank(response_data, downstream_session_key)
+        if isinstance(business_payload, dict):
+            print("[STEP 8] Business payload keys:", list(business_payload.keys()))
         else:
-            print("DEBUG: [EXCEPTION] No session key, returning plain error.")
-            return Response({"error": "An internal error occurred during decryption"}, status=500)
+            print("[STEP 8] Business payload non-dict:", str(business_payload)[:200])
+        audit_logs.log_event(transaction_id, "downstream_processed")
+
+        # Optionally verify server signature if provided
+        server_signature = business_payload.get("signature") if isinstance(business_payload, dict) else None
+        server_pubkey = business_payload.get("server_pubkey") if isinstance(business_payload, dict) else None
+        if server_signature and server_pubkey:
+            try:
+                sv = crypto_engine.ecdsa_verify(business_payload.get("payload", {}), server_signature, server_pubkey)
+                print("[STEP 8] Server signature verification result:", sv)
+                audit_logs.log_event(transaction_id, "server_signature_verified", {"verified": sv})
+            except Exception as e:
+                print("[STEP 8] Server signature verification error:", str(e))
+                traceback.print_exc()
+                audit_logs.log_event(transaction_id, "server_signature_verification_failed", {"error": str(e)})
+
+        # --- Re-encrypt business payload for client using session_key ---
+        payload_to_client = business_payload.get("payload", business_payload) if isinstance(business_payload, dict) else business_payload
+        frontend_envelope = crypto_engine.aes256gcm_encrypt(payload_to_client, session_key)
+        print("[STEP 9] Re-encrypted business payload for client, envelope keys:", list(frontend_envelope.keys()))
+        audit_logs.log_event(transaction_id, "response_encrypted_for_client", {"envelope_keys": list(frontend_envelope.keys())})
+        tx_meta.update_transaction_metadata(transaction_id, status_code=status_code, response_size_bytes=len(json.dumps(frontend_envelope)), processing_time_ms=(time.time() - start_time) * 1000)
+
+        # Persist minimal TransactionMetadata info using tx_meta module (db-backed)
+        try:
+            tx_meta.update_transaction_metadata(
+                transaction_id,
+                client_ip=client_ip,
+                processing_time_ms=(time.time() - start_time) * 1000,
+                payload_size_bytes=len(ciphertext),
+                client_signature_verified=client_sig_valid,
+                status_code=status_code
+            )
+            print("[DB] TransactionMetadata updated for tx:", transaction_id)
+        except Exception as e:
+            print("[DB] Warning: could not persist TransactionMetadata:", str(e))
+            traceback.print_exc()
+
+        print(f"[SECURE_GATEWAY] Completed tx={transaction_id} in {int((time.time() - start_time) * 1000)}ms")
+        return Response(frontend_envelope, status=status_code)
+
+    except Exception as exc:
+        print("[SECURE_GATEWAY] EXCEPTION:", str(exc))
+        traceback.print_exc()
+        audit_logs.log_event(transaction_id, "exception", {"error": str(exc)})
+
+        # If session_key available, try to encrypt error response
+        if session_key:
+            try:
+                err_payload = {"error": str(exc)}
+                encrypted_err = crypto_engine.aes256gcm_encrypt(err_payload, session_key)
+                print("[SECURE_GATEWAY] Returning encrypted error for tx:", transaction_id)
+                return Response(encrypted_err, status=500)
+            except Exception as e:
+                print("[SECURE_GATEWAY] Failed to encrypt error response:", str(e))
+                traceback.print_exc()
+
+        return Response({"error": "An internal error occurred during processing"}, status=500)

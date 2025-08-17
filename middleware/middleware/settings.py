@@ -23,8 +23,8 @@ load_dotenv()
 SECRET_KEY = os.getenv('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
-DEBUG = True 
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+
 
 
 ALLOWED_HOSTS = [
@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'encrypted_model_fields',
-    'core',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -56,7 +56,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
 ]
 
-ROOT_URLCONF = 'bankingapi.urls'
+
+ROOT_URLCONF = 'middleware.urls'
 
 TEMPLATES = [
     {
@@ -74,7 +75,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'bankingapi.wsgi.application'
+WSGI_APPLICATION = 'middleware.wsgi.application'
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
@@ -107,13 +108,13 @@ tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 #     }
 # }
 
-#use sqlitedb
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -179,7 +180,9 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-AUTH_USER_MODEL = 'core.User'
+#use the default django auth model
+AUTH_USER_MODEL = 'auth.User'
+
 # Email Configuration - Console backend for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -210,14 +213,16 @@ LOGGING = {
     },
 }
 
-# Admin Site Configuration for SecureCipher Banking
-ADMIN_SITE_HEADER = 'SecureCipher Banking Administration'
-ADMIN_SITE_TITLE = 'SecureCipher Banking Admin'
-ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Banking Administration'
+# Admin Site Configuration for SecureCipher Middleware
+ADMIN_SITE_HEADER = 'SecureCipher Middleware Administration'
+ADMIN_SITE_TITLE = 'SecureCipher Middleware Admin'
+ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
 
-# SecureCipher Banking Configuration
-BANK_NAME = 'SecureCipher Bank'
-BANK_CODE = 'SCB'
+# SecureCipher Middleware Configuration
+BANK_NAME = 'SecureCipher Middleware'
+BANK_CODE = 'SCM'
 BANK_SLOGAN = 'Secure. Encrypted. Trusted.'
 
-FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')
+#Fernet key must be 32 url-safe base64-encoded bytes.
+FIELD_ENCRYPTION_KEY = os.getenv('SECRET_KEY', 'bXlTZWNyZXRGaWVsZEVuY3J5cHRpb25LZXk=')    
+FIELD_ENCRYPTION_KEY = FIELD_ENCRYPTION_KEY.encode('utf-8')

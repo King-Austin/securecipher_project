@@ -280,8 +280,12 @@ class ProfileView(APIView):
 
 # Utility function for encrypted + signed responses
 def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
-
     print(f"DEBUG: [encrypted_response] session_key={session_key}, payload={payload}")
+    if not session_key:
+        # Fallback: Return plain JSON if session_key is missing
+        print("DEBUG: [encrypted_response] No session_key, returning plaintext payload")
+        return Response(payload, status=status_code)
+
     try:
         # Convert Django ErrorDetail objects to standard format for consistent JSON serialization
         def normalize_payload(obj):
