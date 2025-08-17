@@ -125,6 +125,9 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
     console.log('[Session] Deriving session key...');
     const sessionKey = await SecureKeyManager.deriveSessionKey(sharedSecret);
     console.log('[Session] Session key derived:', sessionKey);
+    //print the hex of the session key in plain text not object
+    console.log('[Session] Session key (hex):', sessionKey.toString('hex'));
+
 
 
     // Step 5: Prepare payload to sign

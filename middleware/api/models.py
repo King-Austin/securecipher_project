@@ -123,3 +123,31 @@ class TransactionMetadata(models.Model):
         if self.processing_time_ms:
             return self.processing_time_ms / 1000.0
         return None
+    
+# models.py (add these model definitions to the app that contains views.py)
+import uuid
+from django.db import models
+
+class AuditLog(models.Model):
+    """
+    Persistent audit log entry keyed by transaction_id.
+    Minimal but sufficient for admin display and tamper-evidence.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    transaction_id = models.CharField(max_length=128, db_index=True, help_text="Middleware transaction UUID")
+    event_type = models.CharField(max_length=100, help_text="Type of event (e.g., payload_decrypted)")
+    details = models.JSONField(null=True, blank=True, help_text="Structured details for admin inspection")
+    actor = models.CharField(max_length=100, blank=True, null=True, help_text="Optional actor (middleware, bank, client)")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    prev_hash = models.CharField(max_length=128, blank=True, null=True, help_text="Previous record hash for chain")
+    record_hash = models.CharField(max_length=128, blank=True, null=True, help_text="SHA256 hash of this record + prev_hash")
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["transaction_id", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_id} | {self.event_type} @ {self.timestamp.isoformat()}"
+

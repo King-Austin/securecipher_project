@@ -15,12 +15,7 @@ from django.conf import settings
 from django.shortcuts import render
 
 from api.models import MiddlewareKey, UsedNonce, TransactionMetadata
-from scripts import generate_keypair
-from .downstream_handler import (
-    send_downstream_request,
-    get_bank_public_key,
-    get_target_url
-)
+
 
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -139,7 +134,7 @@ def get_or_create_active_key():
         return MiddlewareKey.objects.get(label="active")
     except MiddlewareKey.DoesNotExist:
         print("DEBUG: No active middleware key found, generating new one...")
-        generate_keypair.generate()
+        KeyPairGenerator.generate_and_store_keypair()
         return MiddlewareKey.objects.get(label="active")
 
 
@@ -576,3 +571,105 @@ def secure_gateway(request):
         else:
             print("DEBUG: [EXCEPTION] No session key, returning plain error.")
             return Response({"error": "An internal error occurred during decryption"}, status=500)
+        
+
+class KeyPairGenerator:
+    """Handles ECC key pair generation and storage"""
+    
+    @staticmethod
+    def generate_private_key():
+        """Generate a new ECC private key"""
+        return ec.generate_private_key(ec.SECP384R1())
+    
+    @staticmethod
+    def serialize_private_key(private_key):
+        """Serialize private key to PEM format"""
+        return private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode()
+    
+    @staticmethod
+    def serialize_public_key(public_key):
+        """Serialize public key to PEM format"""
+        return public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+    
+    @classmethod
+    def generate_and_store_keypair(cls, label="active"):
+        """Generate and store a new key pair"""
+        # Generate keys
+        private_key = cls.generate_private_key()
+        public_key = private_key.public_key()
+        
+        # Serialize keys
+        private_pem = cls.serialize_private_key(private_key)
+        public_pem = cls.serialize_public_key(public_key)
+        
+        # Store in database
+        MiddlewareKey.objects.create(
+            label=label, 
+            private_key_pem=private_pem, 
+            public_key_pem=public_pem
+        )
+        
+        print(f"[✅] Middleware keypair '{label}' saved.")
+
+
+def generate():
+    """Legacy function for backward compatibility"""
+    KeyPairGenerator.generate_and_store_keypair()
+
+
+import requests
+import time
+from django.conf import settings
+from .config import DEFAULT_ROUTING_TABLE
+
+def get_routing_table():
+    return getattr(settings, 'ROUTING_TABLE', DEFAULT_ROUTING_TABLE)
+
+def send_downstream_request(method, url, data=None, headers=None, timeout=30, max_retries=3):
+    headers = headers or {
+        'Content-Type': 'application/json',
+        'User-Agent': 'SecureCipher-Middleware/1.0',
+        'X-Forwarded-By': 'SecureCipher'
+    }
+    try:
+        print(f"DEBUG: {method} {url}")
+        resp = requests.request(
+            method=method.upper(),
+            url=url,
+            json=data,
+            headers=headers,
+            timeout=timeout
+        )
+        print(f"DEBUG: Downstream status: {resp.status_code}")
+        try:
+            return resp.json(), resp.status_code
+        except ValueError:
+            return {'error': 'Invalid JSON from downstream', 'raw_response': resp.text[:500]}, resp.status_code
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.RequestException) as e:
+        print(f"DEBUG: Downstream request error: {e}")
+        return {'error': str(e)}, 503
+
+def get_bank_public_key():
+    routing_table = get_routing_table()
+    url = routing_table.get('public_key', 'http://localhost:8001/public-key/')
+    result, status = send_downstream_request("GET", url)
+    if status != 200:
+        raise ValueError(f"Failed to fetch public key from {url}: {status} {result}")
+    key_pem = result.get('public_key')
+    if not key_pem:
+        raise ValueError("Banking API public key not found in response")
+    return key_pem
+
+def get_target_url(target):
+    routing_table = get_routing_table()
+    url = routing_table.get(target)
+    if not url:
+        raise ValueError(f"Unknown target: {target}")
+    return url
