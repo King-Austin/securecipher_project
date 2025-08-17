@@ -32,4 +32,6 @@ sentry-sdk[django]>=1.32.0    # Error tracking and monitoring
 dj-database-url>=0.5.0        # Parse database URLs for Django
 psycopg2-binary>=2.9.0        # PostgreSQL adapter for production
 uvicorn
+django-encrypted-model-fields
+
 

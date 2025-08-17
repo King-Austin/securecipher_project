@@ -188,6 +188,7 @@ ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Middleware Administration'
 
 # SecureCipher Logging Configuration
 
+FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')
 
 # Define routing table for downstream services
 from api.config import DEFAULT_ROUTING_TABLE

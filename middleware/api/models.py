@@ -2,11 +2,13 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+from encrypted_model_fields.fields import EncryptedTextField
+
 
 class MiddlewareKey(models.Model):
     label = models.CharField(max_length=50, unique=True)
     private_key_pem = models.TextField()
-    public_key_pem = models.TextField()
+    public_key_pem = EncryptedTextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
