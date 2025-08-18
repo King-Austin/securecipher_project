@@ -20,7 +20,10 @@ import uuid
 from django.db import IntegrityError
 from django.shortcuts import render
 from rest_framework.decorators import api_view
+from rest_framework.views import APIView
+
 from rest_framework.response import Response
+from .models import CryptoKey, CryptoLog, Transaction, MiddlewareKey
 
 # App modules (these must exist in the same app package)
 from modules import crypto_engine
@@ -29,10 +32,33 @@ from modules import transaction_processor
 from modules import transaction_metadata as tx_meta
 from modules import audit_logs
 from modules import tls_middleware
-from modules.downstream_handler import send_downstream_request, get_bank_public_key, get_target_url
 
 # DB models (persistent storage)
 from .models import MiddlewareKey, UsedNonce, TransactionMetadata, AuditLog
+
+from .serializers import (
+    CryptoKeySerializer, 
+    CryptoLogSerializer, 
+    TransactionSerializer,
+    MiddlewareKeySerializer
+)
+
+class DashboardDataView(APIView):
+    """
+    Fetch all dashboard data in a single request to reduce backend hits.
+    """
+    def get(self, request, format=None):
+        keys = CryptoKeySerializer(CryptoKey.objects.all(), many=True).data
+        logs = CryptoLogSerializer(CryptoLog.objects.all(), many=True).data
+        txns = TransactionSerializer(Transaction.objects.all(), many=True).data
+        mkeys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+
+        return Response({
+            "keys": keys,
+            "logs": logs,
+            "transactions": txns,
+            "middleware_keys": mkeys
+        })
 
 
 def index_view(request):
@@ -55,6 +81,7 @@ def get_public_key(request):
         print("[GET_PUBLIC_KEY] ERROR retrieving middleware public key:", str(e))
         traceback.print_exc()
         return Response({"error": "Failed to retrieve public key"}, status=500)
+
 
 
 @api_view(["POST"])
