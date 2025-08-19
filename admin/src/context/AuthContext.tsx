@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch("http://localhost:8000/api/login/", {
+      const res = await fetch("https://securecipher-middleware.onrender.com/api/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!isAuthenticated) return null;
 
     try {
-      const res = await fetch("http://localhost:8000/api/rotate-key/", {
+      const res = await fetch("https://securecipher-middleware.onrender.com/api/rotate-key/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason })
