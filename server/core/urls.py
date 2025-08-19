@@ -10,5 +10,5 @@ urlpatterns = [
 
     path('validate_account/', ValidateAccountView.as_view(), name='validate_account'),
     path('transfer/', TransferView.as_view(), name='transfer'),
-    path('profile/', ProfileView.as_view(), name='profile'),
+    path('refresh/', ProfileView.as_view(), name='profile'),
 ]

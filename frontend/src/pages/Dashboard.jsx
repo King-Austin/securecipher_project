@@ -31,7 +31,7 @@ export default function Dashboard() {
       
       // Call the secure API with dashboard target
       const response = await secureRequest({
-        target: 'profile',
+        target: 'refresh',
         payload: { user: user },
         pin: pin
       });

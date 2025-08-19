@@ -1,4 +1,3 @@
-# views.py
 """
 Refactored SecureCipher middleware views (logger removed per request).
 - Delegates cryptography to crypto_engine
@@ -6,9 +5,10 @@ Refactored SecureCipher middleware views (logger removed per request).
 - Transaction processing to transaction_processor
 - Audit persistence to audit_logs (DB-backed)
 - Transaction metadata persisted via transaction_metadata
-- Downstream HTTP handled by downstream_handler
+- Downstream HTTP handled by tls_middleware
 
-This file intentionally includes verbose prints for debugging (can be switched back to logger later).
+This file intentionally includes verbose prints for debugging 
+(can be switched back to logger later).
 """
 
 import base64
@@ -17,48 +17,126 @@ import time
 import traceback
 import uuid
 
+
+
+
 from django.db import IntegrityError
 from django.shortcuts import render
-from rest_framework.decorators import api_view
+from django.contrib.auth import authenticate
+#  DRF imports
 from rest_framework.views import APIView
-
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import CryptoKey, CryptoLog, Transaction, MiddlewareKey
+from rest_framework import status
 
-# App modules (these must exist in the same app package)
+#  DB models
+from .models import (
+    MiddlewareKey,
+    KeyRotationLog,
+    UsedNonce,
+    TransactionMetadata,
+    AuditLog,
+)
+
+#  Serializers
+from .serializers import (
+    MiddlewareKeySerializer,
+    KeyRotationLogSerializer,
+    UsedNonceSerializer,
+    TransactionMetadataSerializer,
+    AuditLogSerializer,
+    AdminLoginSerializer
+)
+
+#  Internal modules (must exist in modules/ within the app)
 from modules import crypto_engine
 from modules import key_manager
 from modules import transaction_processor
 from modules import transaction_metadata as tx_meta
 from modules import audit_logs
-from modules import tls_middleware
 
-# DB models (persistent storage)
-from .models import MiddlewareKey, UsedNonce, TransactionMetadata, AuditLog
+class RotateMiddlewareKeyView(APIView):
 
-from .serializers import (
-    CryptoKeySerializer, 
-    CryptoLogSerializer, 
-    TransactionSerializer,
-    MiddlewareKeySerializer
-)
+    def post(self, request):
+        """
+        Rotates the active middleware key:
+        - Generates a new EC P-384 keypair
+        - Deactivates previous active key (if any)
+        - Writes KeyRotationLog
+        - Returns: new active key + refreshed Admin dataset for instant UI refresh
+        """
+        reason = (request.data or {}).get("reason") or "admin-initiated rotation"
+        key_manager.rotate_middleware_key(reason=reason)
 
-class DashboardDataView(APIView):
-    """
-    Fetch all dashboard data in a single request to reduce backend hits.
-    """
-    def get(self, request, format=None):
-        keys = CryptoKeySerializer(CryptoKey.objects.all(), many=True).data
-        logs = CryptoLogSerializer(CryptoLog.objects.all(), many=True).data
-        txns = TransactionSerializer(Transaction.objects.all(), many=True).data
-        mkeys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+        # Build refreshed admin dataset so the frontend can overwrite local storage in a single pass.
+        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+        rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
+        nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
+        transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
+        audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
 
+        # Build unified response
         return Response({
-            "keys": keys,
-            "logs": logs,
-            "transactions": txns,
-            "middleware_keys": mkeys
-        })
+            "middleware_keys": keys,
+            "key_rotations": rotations,
+            "nonces": nonces,
+            "transactions": transactions,
+            "audit_logs": audits,
+        }, status=status.HTTP_200_OK)
+
+class AdminDataCollectionView(APIView):
+    """
+    Collects all data from serializers and returns them
+    as a single response for the dashboard.
+    """
+
+    def get(self, request):
+        # Serialize each model
+        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+        rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
+        nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
+        transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
+        audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
+
+        # Build unified response
+        return Response({
+            "middleware_keys": keys,
+            "key_rotations": rotations,
+            "nonces": nonces,
+            "transactions": transactions,
+            "audit_logs": audits,
+        }, status=status.HTTP_200_OK)
+    
+class AdminLogin(APIView):
+    """
+    Validate user credentials using Django's built-in authentication.
+    """
+
+    def post(self, request):
+        serializer = AdminLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        username = serializer.validated_data["username"]
+        password = serializer.validated_data["password"]
+
+        user = authenticate(username=username, password=password)
+
+        if user is not None:
+            return Response({
+                "authenticated": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email
+                }
+            }, status=status.HTTP_200_OK)
+        #send authorise cookie to the user:
+        
+
+        return Response({"authenticated": False}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+
 
 
 def index_view(request):
@@ -95,6 +173,14 @@ def secure_gateway(request):
     - Decrypts downstream response, optionally verifies server signature
     - Re-encrypts business payload for client and returns.
     """
+    # Pre-defined mapping of target → downstream URL for audit purposes
+    TARGET_URLS = {
+        "register": "https://bank.securecipher.com/api/register",
+        "refresh": "https://bank.securecipher.com/api/refresh",
+        "send_money": "https://bank.securecipher.com/api/transfer",
+        "validate_account": "https://bank.securecipher.com/api/validate"
+    }
+
     transaction_id = str(uuid.uuid4())
     start_time = time.time()
     client_ip = request.META.get("REMOTE_ADDR", "unknown")
@@ -138,7 +224,6 @@ def secure_gateway(request):
         print("[STEP 2] Loaded middleware key:", f"label={mk.label} v{mk.version} active={mk.active}")
         audit_logs.log_event(transaction_id, "middleware_key_loaded", {"label": mk.label, "version": mk.version})
 
-        # derive session key: key_manager handles private key loading and ECDH
         session_key = key_manager.derive_session_key(client_ephemeral_der)
         session_key_hash = crypto_engine.hash_data(session_key)
         print("[STEP 2] Derived session key hash:", session_key_hash)
@@ -150,8 +235,8 @@ def secure_gateway(request):
         try:
             inner_payload = crypto_engine.aes256gcm_decrypt(inner_envelope, session_key)
             print("[STEP 3] Inner payload decrypted. Keys:", list(inner_payload.keys()))
-            audit_logs.log_event(transaction_id, "payload_decrypted", {"inner_keys": list(inner_payload.keys())})
-            tx_meta.update_transaction_metadata(transaction_id, details={"inner_keys": list(inner_payload.keys())})
+            audit_logs.log_event(transaction_id, "payload_decrypted")
+            tx_meta.update_transaction_metadata(transaction_id, banking_route=inner_payload.get("target"))
         except Exception as e:
             print("[STEP 3] Decryption failed:", str(e))
             traceback.print_exc()
@@ -162,16 +247,13 @@ def secure_gateway(request):
         timestamp = inner_payload.get("timestamp")
         print(f"[STEP 4] Received nonce={nonce} timestamp={timestamp}")
         audit_logs.log_event(transaction_id, "timestamp_nonce_received", {"nonce": nonce, "timestamp": time.ctime(timestamp) if timestamp else "None"})
-        # Validate timestamp (may raise)
         crypto_engine.validate_timestamp(timestamp)
         tx_meta.update_transaction_metadata(transaction_id, request_timestamp=timestamp)
 
-        # Validate nonce using persistent UsedNonce model
         if nonce is None:
             raise ValueError("Nonce missing in inner payload")
 
         try:
-            # Attempt create; unique constraint ensures replay protection
             UsedNonce.objects.create(nonce=nonce)
             print("[STEP 4] Nonce stored successfully.")
             audit_logs.log_event(transaction_id, "nonce_stored", {"nonce_trunc": nonce[:64]})
@@ -183,7 +265,7 @@ def secure_gateway(request):
         # --- Verify client signature ---
         transaction_data = inner_payload.get("transaction_data")
         client_signature = inner_payload.get("client_signature")
-        client_public_key = inner_payload.get("client_public_key")  # PEM or base64 DER allowed
+        client_public_key = inner_payload.get("client_public_key")  
 
         if not (transaction_data and client_signature and client_public_key):
             raise ValueError("Missing transaction_data / client_signature / client_public_key")
@@ -214,19 +296,18 @@ def secure_gateway(request):
         audit_logs.log_event(transaction_id, "middleware_signed", {"signature_len": len(middleware_signature)})
         tx_meta.update_transaction_metadata(transaction_id, middleware_signature=middleware_signature)
 
-        # Attach middleware public key PEM for downstream
-        middleware_public_pem = mk.public_key_pem
         forwarded_payload["middleware_signature"] = middleware_signature
-        forwarded_payload["middleware_public_key"] = middleware_public_pem
+        forwarded_payload["middleware_public_key"] = mk.public_key_pem
 
         # --- Encrypt and send to downstream bank ---
         target = inner_payload.get("target")
         if not target:
             raise ValueError("Missing target in inner payload")
 
-        print(f"[STEP 7] Creating downstream envelope and sending to target='{target}'")
+        target_url = TARGET_URLS.get(target, "unknown")  # <-- audit log compatible
+        print(f"[STEP 7] Creating downstream envelope and sending to target='{target}' ({target_url})")
         print("[STEP 7] Forwarded payload keys:", list(forwarded_payload.keys()))
-        audit_logs.log_event(transaction_id, "forwarding_to_downstream", {"target": target})
+        audit_logs.log_event(transaction_id, "forwarding_to_downstream", {"target": target, "target_url": target_url})
 
         response_data, status_code, downstream_session_key = transaction_processor.encrypt_and_send_to_bank(forwarded_payload, target)
         print("[STEP 7] Downstream response status:", status_code)
@@ -241,7 +322,7 @@ def secure_gateway(request):
             print("[STEP 8] Business payload non-dict:", str(business_payload)[:200])
         audit_logs.log_event(transaction_id, "downstream_processed")
 
-        # Optionally verify server signature if provided
+        # Optional server signature verification
         server_signature = business_payload.get("signature") if isinstance(business_payload, dict) else None
         server_pubkey = business_payload.get("server_pubkey") if isinstance(business_payload, dict) else None
         if server_signature and server_pubkey:
@@ -254,14 +335,13 @@ def secure_gateway(request):
                 traceback.print_exc()
                 audit_logs.log_event(transaction_id, "server_signature_verification_failed", {"error": str(e)})
 
-        # --- Re-encrypt business payload for client using session_key ---
         payload_to_client = business_payload.get("payload", business_payload) if isinstance(business_payload, dict) else business_payload
         frontend_envelope = crypto_engine.aes256gcm_encrypt(payload_to_client, session_key)
         print("[STEP 9] Re-encrypted business payload for client, envelope keys:", list(frontend_envelope.keys()))
         audit_logs.log_event(transaction_id, "response_encrypted_for_client", {"envelope_keys": list(frontend_envelope.keys())})
         tx_meta.update_transaction_metadata(transaction_id, status_code=status_code, response_size_bytes=len(json.dumps(frontend_envelope)), processing_time_ms=(time.time() - start_time) * 1000)
 
-        # Persist minimal TransactionMetadata info using tx_meta module (db-backed)
+        # Persist minimal TransactionMetadata info
         try:
             tx_meta.update_transaction_metadata(
                 transaction_id,
@@ -284,7 +364,6 @@ def secure_gateway(request):
         traceback.print_exc()
         audit_logs.log_event(transaction_id, "exception", {"error": str(exc)})
 
-        # If session_key available, try to encrypt error response
         if session_key:
             try:
                 err_payload = {"error": str(exc)}

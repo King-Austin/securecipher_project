@@ -14,22 +14,19 @@ def _compute_hash(record_dict: dict, prev_hash: str = "") -> str:
         h.update(prev_hash.encode())
     return h.hexdigest()
 
-def log_event(transaction_id: str, event_type: str, details: dict = None, actor: str = "middleware"):
-    details = details or {}
+def log_event(transaction_id: str, event_type: str, actor: str = "middleware"):
     # find last record for transaction to chain
     last = AuditLog.objects.filter(transaction_id=transaction_id).order_by("-timestamp").first()
     prev_hash = last.record_hash if last else ""
     record = {
         "transaction_id": transaction_id,
         "event_type": event_type,
-        "details": details,
         "actor": actor
     }
     record_hash = _compute_hash(record, prev_hash)
     db_obj = AuditLog.objects.create(
         transaction_id=transaction_id,
         event_type=event_type,
-        details=details,
         actor=actor,
         prev_hash=prev_hash,
         record_hash=record_hash
@@ -39,4 +36,4 @@ def log_event(transaction_id: str, event_type: str, details: dict = None, actor:
 
 def retrieve_log(transaction_id: str):
     qs = AuditLog.objects.filter(transaction_id=transaction_id).order_by("timestamp")
-    return list(qs.values("transaction_id", "event_type", "details", "actor", "timestamp", "prev_hash", "record_hash"))
+    return list(qs.values("transaction_id", "event_type", "actor", "timestamp", "prev_hash", "record_hash"))

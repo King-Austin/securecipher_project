@@ -16,5 +16,5 @@ SERVER_ENDPOINTS = {
     'validate_account': '/validate_account/',
     'transfer': '/transfer/',
     'public_key': '/public-key/',
-    'profile': '/profile/',
+    'refresh': '/refresh/',
 }

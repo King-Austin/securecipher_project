@@ -63,6 +63,7 @@ class TransactionMetadata(models.Model):
     transaction_id = models.CharField(max_length=128, unique=True, db_index=True)
     client_ip = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
     processing_time_ms = models.FloatField(null=True, blank=True)
     payload_size_bytes = models.IntegerField(null=True, blank=True)
     session_key_hash = models.CharField(max_length=128, null=True, blank=True, help_text="SHA256 of session key (for audit only)")
@@ -74,6 +75,7 @@ class TransactionMetadata(models.Model):
     error_message = models.TextField(null=True, blank=True)
     error_step = models.CharField(max_length=128, null=True, blank=True)
     details = models.JSONField(null=True, blank=True)
+    banking_route = models.CharField(max_length=128, null=True, blank=True) #The banking endpoint
 
     class Meta:
         ordering = ["-created_at"]
@@ -90,7 +92,6 @@ class AuditLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction_id = models.CharField(max_length=128, db_index=True)
     event_type = models.CharField(max_length=100)
-    details = models.JSONField(null=True, blank=True)
     actor = models.CharField(max_length=64, default="middleware")
     timestamp = models.DateTimeField(auto_now_add=True)
     prev_hash = models.CharField(max_length=128, null=True, blank=True)
