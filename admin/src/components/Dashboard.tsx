@@ -10,7 +10,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/admin/', {
+        const response = await fetch('https://securecipher-middleware.onrender.com/api/admin/', {
           headers: { 'Content-Type': 'application/json' },
         });
         if (!response.ok) throw new Error('Failed to fetch dashboard data');
