@@ -31,7 +31,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
+<<<<<<< HEAD
       const res = await fetch("https://securecipher-middleware.onrender.com/api/login/", {
+=======
+      const res = await fetch('https://securecipher-middleware.onrender.com/api/login/', {
+>>>>>>> ebdffe0 (changes done)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
