@@ -11,5 +11,5 @@ urlpatterns = [
     path('validate_account/', ValidateAccountView.as_view(), name='validate_account'),
     path('transfer/', TransferView.as_view(), name='transfer'),
     path('refresh/', ProfileView.as_view(), name='profile'),
-    path('admin/', AdminDashboardView.as_view(), name='admin_dashboard'),
+    path('admin-dashboard/', AdminDashboardView.as_view(), name='admin_dashboard'),
 ]
