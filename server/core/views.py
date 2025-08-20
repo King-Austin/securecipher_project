@@ -1,4 +1,5 @@
 from rest_framework.views import APIView
+from django.db.models import Sum
 from rest_framework.response import Response
 from rest_framework import status, permissions, serializers
 from django.db import transaction
@@ -349,7 +350,7 @@ class AdminDashboardView(APIView):
             # === 1. Global Stats ===
             total_users = User.objects.count()
             active_users = User.objects.filter(status="ACTIVE").count()
-            total_balance = User.objects.aggregate(total=models.Sum("balance"))["total"] or 0
+            total_balance = User.objects.aggregate(total=Sum("balance"))["total"] or 0
             total_transactions = Transaction.objects.count()
             total_credits = Transaction.objects.filter(transaction_type="CREDIT").count()
             total_debits = Transaction.objects.filter(transaction_type="DEBIT").count()
