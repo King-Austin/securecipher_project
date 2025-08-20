@@ -98,7 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchBankingDashboard = async (): Promise<any | null> => {
     if (!isAuthenticated) return null;
     try {
-      const res = await fetch("http://127.0.0.1:8000/admin-dashboard");
+      const res = await fetch("https://securecipher-server.onrender.com/admin-dashboard");
       if (!res.ok) return null;
       const data = await res.json();
       localStorage.setItem("bankingDashboard", JSON.stringify(data));

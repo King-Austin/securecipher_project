@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";  // ✅ use context
 
 interface Stats {
   total_users: number;
@@ -61,33 +62,27 @@ const shortenKey = (key: string, front: number = 10, back: number = 10) => {
   return `${key.slice(0, front)}...${key.slice(-back)}`;
 };
 
-// === Utility: copy to clipboard ===
-const copyToClipboard = async (text: string) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (err) {
-    console.error("Failed to copy: ", err);
-    return false;
-  }
-};
-
 const UserDashboard: React.FC = () => {
+  const { fetchBankingDashboard, isAuthenticated } = useAuth();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/admin-dashboard")
-      .then((res) => res.json())
-      .then((json: DashboardResponse) => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching dashboard:", err);
-        setLoading(false);
-      });
-  }, []);
+    const loadData = async () => {
+      setLoading(true);
+
+
+
+      // ✅ Fetch only via AuthContext
+      if (isAuthenticated) {
+        const dashboard = await fetchBankingDashboard();
+        setData(dashboard);
+      }
+      setLoading(false);
+    };
+
+    loadData();
+  }, [isAuthenticated, fetchBankingDashboard]);
 
   if (loading) return <p className="p-4">Loading dashboard...</p>;
   if (!data) return <p className="p-4 text-red-500">Failed to load data</p>;
@@ -130,9 +125,12 @@ const UserDashboard: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        const success = await copyToClipboard(profile.user.public_key);
-                        if (success) toast.success("Public key copied!");
-                        else toast.error("Failed to copy key");
+                        try {
+                          await navigator.clipboard.writeText(profile.user.public_key);
+                          toast.success("Public key copied!");
+                        } catch {
+                          toast.error("Failed to copy key");
+                        }
                       }}
                     >
                       <ClipboardCopy className="h-4 w-4" />
@@ -145,9 +143,7 @@ const UserDashboard: React.FC = () => {
                     ₦{profile.user.balance.toLocaleString()}
                   </p>
                   <Badge
-                    variant={
-                      profile.user.status === "ACTIVE" ? "default" : "secondary"
-                    }
+                    variant={profile.user.status === "ACTIVE" ? "default" : "secondary"}
                   >
                     {profile.user.status}
                   </Badge>
