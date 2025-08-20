@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+// context/AuthContext.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 interface User {
   id: string;
@@ -11,7 +12,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   rotateKey: (reason: string) => Promise<any | null>;
-  fetchDashboard: () => Promise<any | null>;
+  fetchDashboard: () => Promise<any | null>;        // middleware dashboard
+  fetchBankingDashboard: () => Promise<any | null>; // banking dashboard
   isAuthenticated: boolean;
 }
 
@@ -32,15 +34,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch('https://securecipher-middleware.onrender.com/api/login/', {
+      const res = await fetch("https://securecipher-middleware.onrender.com/api/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
 
       if (!res.ok) return false;
-
       const data = await res.json();
+
       if (data.authenticated) {
         setUser(data.user);
         setIsAuthenticated(true);
@@ -58,58 +60,59 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("user");
-    localStorage.removeItem("dashboardData");
+    localStorage.clear();
   };
 
-  // rotateKey now fetches dashboard data and stores it
   const rotateKey = async (reason: string): Promise<any | null> => {
     if (!isAuthenticated) return null;
-
     try {
       const res = await fetch("https://securecipher-middleware.onrender.com/api/rotate-key/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason })
+        body: JSON.stringify({ reason }),
       });
-
       if (!res.ok) return null;
-
       const data = await res.json();
-      if (data) {
-        localStorage.setItem("dashboardData", JSON.stringify(data));
-        return data;
-      }
-      return null;
+      localStorage.setItem("dashboardData", JSON.stringify(data));
+      return data;
     } catch (err) {
       console.error("Rotate key error:", err);
       return null;
     }
   };
 
-  // new: fetchDashboard (centralized in AuthContext)
   const fetchDashboard = async (): Promise<any | null> => {
     if (!isAuthenticated) return null;
-
     try {
       const res = await fetch("https://securecipher-middleware.onrender.com/api/admin/");
       if (!res.ok) return null;
-
       const data = await res.json();
-      if (data) {
-        localStorage.setItem("dashboardData", JSON.stringify(data));
-        return data;
-      }
-      return null;
+      localStorage.setItem("dashboardData", JSON.stringify(data));
+      return data;
     } catch (err) {
-      console.error("Fetch dashboard error:", err);
+      console.error("Fetch middleware dashboard error:", err);
+      return null;
+    }
+  };
+
+  const fetchBankingDashboard = async (): Promise<any | null> => {
+    if (!isAuthenticated) return null;
+    try {
+      const res = await fetch("http://127.0.0.1:8000/admin-dashboard");
+      if (!res.ok) return null;
+      const data = await res.json();
+      localStorage.setItem("bankingDashboard", JSON.stringify(data));
+      return data;
+    } catch (err) {
+      console.error("Fetch banking dashboard error:", err);
       return null;
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, rotateKey, fetchDashboard, isAuthenticated }}>
+    <AuthContext.Provider
+      value={{ user, login, logout, rotateKey, fetchDashboard, fetchBankingDashboard, isAuthenticated }}
+    >
       {children}
     </AuthContext.Provider>
   );

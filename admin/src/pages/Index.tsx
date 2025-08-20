@@ -18,7 +18,7 @@ const Index = () => {
           Advanced cryptographic security platform with comprehensive transaction monitoring and key management.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <Link to="/crypto-admin">
+          <Link to="/dashboard">
             <Button size="lg" className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
               Access Admin Dashboard

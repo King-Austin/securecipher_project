@@ -25,8 +25,7 @@ coverage>=7.0.0               # Code coverage analysis
 django-extensions>=3.2.0     # Additional Django management commands
 python-dateutil==2.8.2       # Date/time utilities for timestamp validation
 
-# Monitoring & Logging
-sentry-sdk[django]>=1.32.0    # Error tracking and monitoring
+dj-database-url
 
 # Database
 dj-database-url>=0.5.0        # Parse database URLs for Django

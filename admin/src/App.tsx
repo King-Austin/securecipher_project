@@ -8,6 +8,7 @@ import Transactions from "./components/Transactions";
 import Security from "./components/Security";
 import Logs from "./components/Logs";
 import { AuthProvider } from "./context/AuthContext";
+import UserDashboard from "./pages/UserDashboard";
 
 const App = () => (
   <AuthProvider>
@@ -23,6 +24,11 @@ const App = () => (
           <Route path="transactions" element={<Transactions />} />
           <Route path="logs" element={<Logs />} />
           <Route path="security" element={<Security />} />
+          
+          <Route path="user" element={<UserDashboard />}/  >
+          <Route path="profile" element={<div>User Profile</div>} />
+          <Route path="accounts" element={<div>User Accounts</div>} />
+          <Route path="settings" element={<div>User Settings</div>} />
         </Route>
         
         {/* Fallback for unknown routes */}

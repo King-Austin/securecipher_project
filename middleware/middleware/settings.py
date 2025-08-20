@@ -95,7 +95,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Database
 
 # Replace the DATABASES section of your settings.py with this
-tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+tmpPostgres = (os.getenv("DATABASE_URL"))
 
 #use SQllite if debug is True:
 if DEBUG:
@@ -106,17 +106,21 @@ if DEBUG:
         }
     }
 else:
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
+            'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+            'OPTIONS': {
+                'sslmode': os.getenv('DB_SSLMODE', 'require'),
+            },
+        }
     }
-}
 
 
 

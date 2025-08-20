@@ -19,9 +19,9 @@ const middlewareNav = [
 ];
 
 const userNav = [
-  { title: "User Profile", url: "/dashboard/user/profile", icon: User },
-  { title: "Accounts", url: "/dashboard/user/accounts", icon: CreditCard },
-  { title: "Settings", url: "/dashboard/user/settings", icon: Settings },
+  { title: "User Profile", url: "/dashboard/user", icon: User },
+  { title: "Accounts", url: "/dashboard/profile", icon: CreditCard },
+  { title: "Settings", url: "/dashboard/accounts", icon: Settings },
 ];
 
 export const Sidebar = () => {
