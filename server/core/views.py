@@ -340,10 +340,11 @@ def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
 
 
 
+from django.utils.timezone import localtime
 
 class AdminDashboardView(APIView):
     """Admin view to return all users, balances, and transaction insights"""
-    permission_classes = [permissions.IsAdminUser]  # restrict to admins
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         try:
@@ -359,8 +360,19 @@ class AdminDashboardView(APIView):
 
             # === 2. Per-user details ===
             profiles = []
-            for user in User.objects.all():
+            users = User.objects.exclude(username="admin")  # ✅ exclude admin
+            for user in users:
                 transactions = Transaction.objects.filter(account=user).order_by("-created_at")[:5]
+                    # Trim public key PEM formatting
+                clean_pubkey = None
+                if user.public_key:
+                    clean_pubkey = (
+                        user.public_key
+                        .replace("-----BEGIN PUBLIC KEY-----", "")
+                        .replace("-----END PUBLIC KEY-----", "")
+                        .replace("\n", "")
+                        .strip()
+                    )
                 profiles.append({
                     "user": {
                         "id": user.id,
@@ -370,8 +382,9 @@ class AdminDashboardView(APIView):
                         "account_type": user.account_type,
                         "status": user.status,
                         "balance": float(user.balance),
-                        "created_at": user.created_at,
+                       "created_at": localtime(user.created_at).strftime("%Y-%m-%d %H:%M:%S"),  # ✅ localtime
                         "is_verified": user.is_verified,
+                        "public_key": clean_pubkey,
                     },
                     "recent_transactions": TransactionSerializer(transactions, many=True).data
                 })

@@ -18,8 +18,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             'id', 'transaction_type', 'amount', 'description', 'status',
             'reference_number', 'created_at', 'balance_before', 'balance_after',
             'recipient_account_number', 'recipient_name', 
-            'sender_account_number', 'sender_name',
-            'ip_address', 'user_agent', 'location'
+            'sender_account_number', 'sender_name'
         )
 
 

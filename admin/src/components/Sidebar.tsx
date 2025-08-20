@@ -57,7 +57,7 @@ export const Sidebar = () => {
         {/* Banking/User Section */}
         <div>
           <h2 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Banking / User
+            BANK-USERS
           </h2>
           <div className="space-y-1">
             {userNav.map((item) => (
