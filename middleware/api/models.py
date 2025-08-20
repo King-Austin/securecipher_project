@@ -92,7 +92,7 @@ class AuditLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction_id = models.CharField(max_length=128, db_index=True)
     event_type = models.CharField(max_length=100)
-    actor = models.CharField(max_length=64, default="middleware")
+    actor = models.CharField(default="middleware")
     timestamp = models.DateTimeField(auto_now_add=True)
     prev_hash = models.CharField(max_length=128, null=True, blank=True)
     record_hash = models.CharField(max_length=128, null=True, blank=True)

@@ -3,10 +3,12 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "../context/AuthContext";  // ✅ use context
+import { useAuth } from "../context/AuthContext";
+import { cn } from "@/lib/utils"; // helper for conditional classes
 
+// === Interfaces ===
 interface Stats {
   total_users: number;
   active_users: number;
@@ -66,26 +68,22 @@ const UserDashboard: React.FC = () => {
   const { fetchBankingDashboard, isAuthenticated } = useAuth();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedUser, setExpandedUser] = useState<number | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-
-
-
-      // ✅ Fetch only via AuthContext
       if (isAuthenticated) {
         const dashboard = await fetchBankingDashboard();
         setData(dashboard);
       }
       setLoading(false);
     };
-
     loadData();
   }, [isAuthenticated, fetchBankingDashboard]);
 
-  if (loading) return <p className="p-4">Loading dashboard...</p>;
-  if (!data) return <p className="p-4 text-red-500">Failed to load data</p>;
+  if (loading) return <p className="p-4 text-sm">Loading dashboard...</p>;
+  if (!data) return <p className="p-4 text-red-500 text-sm">Failed to load data</p>;
 
   return (
     <div className="p-6 space-y-8">
@@ -93,11 +91,11 @@ const UserDashboard: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {Object.entries(data.stats).map(([key, value]) => (
           <Card key={key} className="shadow-md">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground capitalize">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground capitalize">
                 {key.replace(/_/g, " ")}
               </p>
-              <p className="text-xl font-bold">{value}</p>
+              <p className="text-lg font-bold">{value}</p>
             </CardContent>
           </Card>
         ))}
@@ -105,85 +103,113 @@ const UserDashboard: React.FC = () => {
 
       {/* === User Profiles === */}
       <div className="space-y-6">
-        {data.profiles.map((profile) => (
-          <Card key={profile.user.id} className="shadow-md">
-            <CardContent className="p-4 space-y-4">
-              {/* User Info */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">{profile.user.full_name}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {profile.user.account_number} • {profile.user.account_type}
-                  </p>
+        {data.profiles.map((profile) => {
+          const isExpanded = expandedUser === profile.user.id;
 
-                  {/* Public Key with Copy Button */}
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-mono text-muted-foreground">
-                      ECDSA Pub_key: {shortenKey(profile.user.public_key)}
+          return (
+            <Card key={profile.user.id} className="shadow-md">
+              <CardContent className="p-4 space-y-4">
+                {/* User Info */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-bold">{profile.user.full_name}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {profile.user.account_number} • {profile.user.account_type}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(profile.user.public_key);
-                          toast.success("Public key copied!");
-                        } catch {
-                          toast.error("Failed to copy key");
-                        }
-                      }}
+
+                    {/* Public Key with Copy Button */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs font-mono text-muted-foreground">
+                        Key: <span className="font-bold">{shortenKey(profile.user.public_key)}</span>
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(profile.user.public_key);
+                            toast.success("Public key copied!");
+                          } catch {
+                            toast.error("Failed to copy key");
+                          }
+                        }}
+                      >
+                        <ClipboardCopy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-sm font-bold">
+                      ₦{profile.user.balance.toLocaleString()}
+                    </p>
+                    <Badge
+                      variant={profile.user.status === "ACTIVE" ? "default" : "secondary"}
+                      className="text-xs"
                     >
-                      <ClipboardCopy className="h-4 w-4" />
-                    </Button>
+                      {profile.user.status}
+                    </Badge>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <p className="text-xl font-bold">
-                    ₦{profile.user.balance.toLocaleString()}
-                  </p>
-                  <Badge
-                    variant={profile.user.status === "ACTIVE" ? "default" : "secondary"}
+                {/* Dropdown Transactions */}
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-2 text-xs"
+                    onClick={() =>
+                      setExpandedUser(isExpanded ? null : profile.user.id)
+                    }
                   >
-                    {profile.user.status}
-                  </Badge>
-                </div>
-              </div>
+                    {isExpanded ? "Hide Transactions" : "Show Recent Transactions"}
+                    {isExpanded ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
+                    )}
+                  </Button>
 
-              {/* Recent Transactions */}
-              <div>
-                <h3 className="font-medium mb-2">Recent Transactions</h3>
-                <div className="space-y-2">
-                  {profile.recent_transactions.length > 0 ? (
-                    profile.recent_transactions.map((txn) => (
-                      <div
-                        key={txn.id}
-                        className="flex items-center justify-between border p-2 rounded-md"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">
-                            {txn.transaction_type} • ₦
-                            {parseFloat(txn.amount).toLocaleString()}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {txn.description}
-                          </p>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(txn.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No recent transactions
-                    </p>
+                  {isExpanded && (
+                    <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                      {profile.recent_transactions.length > 0 ? (
+                        profile.recent_transactions.map((txn) => (
+                          <div
+                            key={txn.id}
+                            className={cn(
+                              "flex items-center justify-between border rounded-md p-2 text-xs",
+                              txn.transaction_type === "CREDIT"
+                                ? "bg-green-50"
+                                : "bg-red-50"
+                            )}
+                          >
+                            <div>
+                              <p className="font-bold">
+                                {txn.transaction_type} • ₦
+                                {parseFloat(txn.amount).toLocaleString()}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {txn.description}
+                              </p>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {new Date(txn.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No recent transactions
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
