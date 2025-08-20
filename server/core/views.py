@@ -12,6 +12,8 @@ from .crypto_utils import CryptoUtils
 import json
 
 
+
+
 def index_view(request):
     """Render the SecureCipher Banking API landing page"""
     return render(request, 'index.html')
@@ -334,3 +336,59 @@ def encrypted_response(session_key, payload, status_code=status.HTTP_200_OK):
     except Exception as e:
         print(f"DEBUG: [encrypted_response] Failed: {e}")
         return Response({'error': 'Encryption or signing failed'}, status=500)
+
+
+
+
+class AdminDashboardView(APIView):
+    """Admin view to return all users, balances, and transaction insights"""
+    permission_classes = [permissions.IsAdminUser]  # restrict to admins
+
+    def get(self, request):
+        try:
+            # === 1. Global Stats ===
+            total_users = User.objects.count()
+            active_users = User.objects.filter(status="ACTIVE").count()
+            total_balance = User.objects.aggregate(total=models.Sum("balance"))["total"] or 0
+            total_transactions = Transaction.objects.count()
+            total_credits = Transaction.objects.filter(transaction_type="CREDIT").count()
+            total_debits = Transaction.objects.filter(transaction_type="DEBIT").count()
+            completed_txns = Transaction.objects.filter(status="COMPLETED").count()
+            failed_txns = Transaction.objects.filter(status="FAILED").count()
+
+            # === 2. Per-user details ===
+            profiles = []
+            for user in User.objects.all():
+                transactions = Transaction.objects.filter(account=user).order_by("-created_at")[:5]
+                profiles.append({
+                    "user": {
+                        "id": user.id,
+                        "username": user.username,
+                        "full_name": f"{user.first_name} {user.last_name}".strip(),
+                        "account_number": user.account_number,
+                        "account_type": user.account_type,
+                        "status": user.status,
+                        "balance": float(user.balance),
+                        "created_at": user.created_at,
+                        "is_verified": user.is_verified,
+                    },
+                    "recent_transactions": TransactionSerializer(transactions, many=True).data
+                })
+
+            # === 3. Response ===
+            return Response({
+                "stats": {
+                    "total_users": total_users,
+                    "active_users": active_users,
+                    "total_balance": total_balance,
+                    "total_transactions": total_transactions,
+                    "total_credits": total_credits,
+                    "total_debits": total_debits,
+                    "completed_transactions": completed_txns,
+                    "failed_transactions": failed_txns,
+                },
+                "profiles": profiles
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

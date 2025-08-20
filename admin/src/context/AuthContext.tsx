@@ -10,7 +10,8 @@ interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
-  rotateKey: (reason: string) => Promise<any | null>; // returns dashboard data
+  rotateKey: (reason: string) => Promise<any | null>;
+  fetchDashboard: () => Promise<any | null>;
   isAuthenticated: boolean;
 }
 
@@ -31,11 +32,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-<<<<<<< HEAD
-      const res = await fetch("https://securecipher-middleware.onrender.com/api/login/", {
-=======
       const res = await fetch('https://securecipher-middleware.onrender.com/api/login/', {
->>>>>>> ebdffe0 (changes done)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
@@ -66,7 +63,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem("dashboardData");
   };
 
-  // rotateKey now fetches dashboard data and stores it in localStorage
+  // rotateKey now fetches dashboard data and stores it
   const rotateKey = async (reason: string): Promise<any | null> => {
     if (!isAuthenticated) return null;
 
@@ -91,8 +88,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // new: fetchDashboard (centralized in AuthContext)
+  const fetchDashboard = async (): Promise<any | null> => {
+    if (!isAuthenticated) return null;
+
+    try {
+      const res = await fetch("https://securecipher-middleware.onrender.com/api/admin/");
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (data) {
+        localStorage.setItem("dashboardData", JSON.stringify(data));
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error("Fetch dashboard error:", err);
+      return null;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, rotateKey, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, login, logout, rotateKey, fetchDashboard, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

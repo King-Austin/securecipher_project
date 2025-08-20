@@ -15,14 +15,25 @@ const App = () => (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Index />} />
-        <Route path="/crypto-admin" element={<CryptoAdmin />}>
-          <Route index element={<Dashboard />} /> 
+        
+        {/* Dashboard with nested routes */}
+        <Route path="/dashboard" element={<CryptoAdmin />}>
+          <Route index element={<Dashboard />} /> {/* default child */}
           <Route path="keys" element={<KeyManagement />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="logs" element={<Logs />} />
           <Route path="security" element={<Security />} />
         </Route>
-        <Route path="*" element={<div className="flex items-center justify-center min-h-screen text-xl">Page Not Found</div>} />
+        
+        {/* Fallback for unknown routes */}
+        <Route
+          path="*"
+          element={
+            <div className="flex items-center justify-center min-h-screen text-xl">
+              Page Not Found
+            </div>
+          }
+        />
       </Routes>
     </BrowserRouter>
   </AuthProvider>
