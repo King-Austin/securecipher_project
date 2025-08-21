@@ -67,6 +67,9 @@ class TransactionMetadata(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     processing_time_ms = models.FloatField(null=True, blank=True)
+    encryption_time_ms = models.FloatField(null=True, blank=True, help_text="Encryption time in milliseconds")
+    decryption_time_ms = models.FloatField(null=True, blank=True, help_text="Decryption time in milliseconds")
+
     payload_size_bytes = models.IntegerField(null=True, blank=True)
     session_key_hash = models.CharField(max_length=128, null=True, blank=True, help_text="SHA256 of session key (for audit only)")
     client_signature_verified = models.BooleanField(default=False)
