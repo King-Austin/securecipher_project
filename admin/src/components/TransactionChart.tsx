@@ -10,20 +10,14 @@ import {
   Legend,
 } from 'chart.js';
 import { format, subHours, startOfHour } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export const TransactionChart = () => {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const { dashboardData } = useAuth();
 
-  useEffect(() => {
-    const dashboardDataStr = localStorage.getItem('dashboardData');
-    if (dashboardDataStr) {
-      const dashboardData = JSON.parse(dashboardDataStr);
-      setTransactions(dashboardData.transactions || []);
-    }
-  }, []);
+  const transactions = dashboardData?.transactions || [];
 
   // Last 24 hours, hourly
   const last24Hours = Array.from({ length: 24 }, (_, i) => {

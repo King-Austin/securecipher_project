@@ -84,28 +84,28 @@ class RotateMiddlewareKeyView(APIView):
             "audit_logs": audits,
         }, status=status.HTTP_200_OK)
 
-# class AdminDataCollectionView(APIView):
-#     """
-#     Collects all data from serializers and returns them
-#     as a single response for the dashboard.
-#     """
+class AdminDataCollectionView(APIView):
+    """
+    Collects all data from serializers and returns them
+    as a single response for the dashboard.
+    """
 
-#     def get(self, request):
-#         # Serialize each model
-#         keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
-#         rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
-#         nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
-#         transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
-#         audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
+    def get(self, request):
+        # Serialize each model
+        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+        rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
+        nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
+        transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
+        audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
 
-#         # Build unified response
-#         return Response({
-#             "middleware_keys": keys,
-#             "key_rotations": rotations,
-#             "nonces": nonces,
-#             "transactions": transactions,
-#             "audit_logs": audits,
-#         }, status=status.HTTP_200_OK)
+        # Build unified response
+        return Response({
+            "middleware_keys": keys,
+            "key_rotations": rotations,
+            "nonces": nonces,
+            "transactions": transactions,
+            "audit_logs": audits,
+        }, status=status.HTTP_200_OK)
     
 
 from django.db.models import Count, Avg, Q, F
@@ -120,11 +120,7 @@ class AdminDataCollectionView(APIView):
 
     def get(self, request):
         # Get base data
-        keys = MiddlewareKeySerializer(
-            MiddlewareKey.objects.filter(active=True), 
-            many=True
-        ).data
-        rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
+        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
         nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
         transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
         audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
@@ -156,7 +152,6 @@ class AdminDataCollectionView(APIView):
         # Build unified response with computed stats
         return Response({
             "middleware_keys": keys,
-            "key_rotations": rotations,
             "nonces": nonces,
             "transactions": transactions,
             "audit_logs": audits,
@@ -173,7 +168,7 @@ class AdminDataCollectionView(APIView):
                 "total_nonces_all_time": UsedNonce.objects.count(),
             }
         }, status=status.HTTP_200_OK)
-
+    
 
 class AdminLogin(APIView):
     """

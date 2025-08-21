@@ -38,10 +38,21 @@ type KeyRotation = {
   rotated_at?: string;
 };
 
+type VersionHistory = {
+  rotation_id: string;
+  old_version: number | null;
+  new_version: number | null;
+  reason?: string;
+  rotated_at?: string;
+  old_key_active: boolean;
+  new_key_active: boolean;
+};
+
 const KeyManagement = () => {
-  const { rotateKey } = useAuth(); // Get rotateKey from AuthContext
+  const { rotateKey } = useAuth();
   const [keys, setKeys] = useState<MiddlewareKey[]>([]);
   const [rotations, setRotations] = useState<KeyRotation[]>([]);
+  const [versionHistory, setVersionHistory] = useState<VersionHistory[]>([]);
   const [rotating, setRotating] = useState(false);
   const [rotateReason, setRotateReason] = useState("");
   const [activeRotateId, setActiveRotateId] = useState<string | null>(null);
@@ -54,19 +65,23 @@ const KeyManagement = () => {
       const parsed = JSON.parse(raw);
       const mk: MiddlewareKey[] = parsed.middleware_keys || [];
       const kr: KeyRotation[] = parsed.key_rotations || [];
+      const vh: VersionHistory[] = parsed.version_history || [];
 
       mk.sort((a, b) =>
         a.active === b.active ? (b.version ?? 0) - (a.version ?? 0) : a.active ? -1 : 1
       );
 
       kr.sort((a, b) => (b.rotated_at ? Date.parse(b.rotated_at) : 0) - (a.rotated_at ? Date.parse(a.rotated_at) : 0));
+      vh.sort((a, b) => (b.rotated_at ? Date.parse(b.rotated_at) : 0) - (a.rotated_at ? Date.parse(a.rotated_at) : 0));
 
       setKeys(mk);
       setRotations(kr);
+      setVersionHistory(vh);
     } catch (err) {
       console.error(err);
       setKeys([]);
       setRotations([]);
+      setVersionHistory([]);
     }
   }, []);
 
@@ -88,10 +103,9 @@ const KeyManagement = () => {
     if (rotating) return;
     setRotating(true);
     try {
-      const dashboard = await rotateKey(reason); // Call centralized rotateKey from AuthContext
+      const dashboard = await rotateKey(reason);
       if (!dashboard) throw new Error("Rotation failed or no dashboard data returned");
 
-      // After rotation, refresh state from localStorage
       refreshFromLocalStorage();
       toast.success("Key rotated successfully");
     } catch (err) {
@@ -102,6 +116,16 @@ const KeyManagement = () => {
       setActiveRotateId(null);
       setRotateReason("");
     }
+  };
+
+  // Helper function to format version history entry
+  const formatVersionHistory = (entry: VersionHistory) => {
+    const oldVersion = entry.old_version ? `v${entry.old_version}` : "unknown";
+    const newVersion = entry.new_version ? `v${entry.new_version}` : "unknown";
+    const oldStatus = entry.old_key_active ? " (active)" : " (inactive)";
+    const newStatus = entry.new_key_active ? " (active)" : " (inactive)";
+    
+    return `${oldVersion}${oldStatus} → ${newVersion}${newStatus}${entry.reason ? ` (${entry.reason})` : ""}`;
   };
 
   return (
@@ -168,12 +192,41 @@ const KeyManagement = () => {
         })}
       </div>
 
-      {/* Rotation History Card */}
+      {/* Version History Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Rotation History
+            Version History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {versionHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No version history available.</p>
+          ) : (
+            versionHistory.map((entry) => {
+              const ts = entry.rotated_at
+                ? format(parseISO(entry.rotated_at), "MMM dd, yyyy, HH:mm:ss")
+                : "—";
+              const detail = formatVersionHistory(entry);
+              
+              return (
+                <div key={entry.rotation_id} className="py-2 border-b last:border-0">
+                  <div className="text-sm font-medium">{ts}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{detail}</div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Legacy Rotation History Card (optional - you can remove this if you only want version history) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Raw Rotation History
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
