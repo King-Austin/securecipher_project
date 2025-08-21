@@ -84,29 +84,97 @@ class RotateMiddlewareKeyView(APIView):
             "audit_logs": audits,
         }, status=status.HTTP_200_OK)
 
+# class AdminDataCollectionView(APIView):
+#     """
+#     Collects all data from serializers and returns them
+#     as a single response for the dashboard.
+#     """
+
+#     def get(self, request):
+#         # Serialize each model
+#         keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+#         rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
+#         nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
+#         transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
+#         audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
+
+#         # Build unified response
+#         return Response({
+#             "middleware_keys": keys,
+#             "key_rotations": rotations,
+#             "nonces": nonces,
+#             "transactions": transactions,
+#             "audit_logs": audits,
+#         }, status=status.HTTP_200_OK)
+    
+
+from django.db.models import Count, Avg, Q, F
+from django.utils import timezone
+from datetime import timedelta
+
 class AdminDataCollectionView(APIView):
     """
     Collects all data from serializers and returns them
-    as a single response for the dashboard.
+    as a single response with computed statistics for dashboard.
     """
 
     def get(self, request):
-        # Serialize each model
-        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
+        # Get base data
+        keys = MiddlewareKeySerializer(
+            MiddlewareKey.objects.filter(active=True), 
+            many=True
+        ).data
         rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
         nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
         transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
         audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
 
-        # Build unified response
+        # Compute statistics
+        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+        
+        # Transaction stats
+        recent_transactions = TransactionMetadata.objects.filter(
+            created_at__gte=twenty_four_hours_ago
+        )
+        total_recent_tx = recent_transactions.count()
+        successful_tx = recent_transactions.filter(status_code=200).count()
+        failed_tx = total_recent_tx - successful_tx
+        avg_processing_time = recent_transactions.aggregate(
+            avg_time=Avg('processing_time_ms')
+        )['avg_time'] or 0
+
+        # Nonce stats
+        recent_nonces = UsedNonce.objects.filter(
+            created_at__gte=twenty_four_hours_ago
+        )
+        valid_nonces = recent_nonces.count()  # Assuming all stored nonces are valid
+
+        # Key stats
+        active_key = MiddlewareKey.objects.filter(active=True).first()
+        key_rotation_count = KeyRotationLog.objects.count()
+
+        # Build unified response with computed stats
         return Response({
             "middleware_keys": keys,
             "key_rotations": rotations,
             "nonces": nonces,
             "transactions": transactions,
             "audit_logs": audits,
+            "stats": {
+                "total_transactions_24h": total_recent_tx,
+                "successful_transactions_24h": successful_tx,
+                "failed_transactions_24h": failed_tx,
+                "success_rate_24h": (successful_tx / total_recent_tx * 100) if total_recent_tx > 0 else 0,
+                "avg_processing_time_ms": avg_processing_time,
+                "valid_nonces_24h": valid_nonces,
+                "active_key_version": active_key.version if active_key else None,
+                "total_key_rotations": key_rotation_count,
+                "total_transactions_all_time": TransactionMetadata.objects.count(),
+                "total_nonces_all_time": UsedNonce.objects.count(),
+            }
         }, status=status.HTTP_200_OK)
-    
+
+
 class AdminLogin(APIView):
     """
     Validate user credentials using Django's built-in authentication.

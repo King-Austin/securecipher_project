@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ChevronLeft, ChevronRight, Search, RefreshCw, Copy, X, ChevronDown, ChevronUp } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 type Transaction = Record<string, any>;
 const ITEMS_PER_PAGE_DEFAULT = 20;

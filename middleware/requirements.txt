@@ -14,7 +14,6 @@ requests==2.32.3              # For making HTTP requests to downstream services
 
 # Security & Performance
 django-cors-headers==4.3.1    # CORS handling for frontend integration
-django-ratelimit==4.1.0       # Rate limiting protection
 redis>=5.0.0                  # For caching and rate limiting
 gunicorn>=21.0.0              # Production WSGI server
 gevent>=23.0.0                # Async worker for gunicorn

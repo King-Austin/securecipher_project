@@ -1,14 +1,12 @@
-// src/pages/UserDashboard.tsx
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClipboardCopy, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { cn } from "@/lib/utils"; // helper for conditional classes
+import { cn } from "@/lib/utils";
 
-// === Interfaces ===
 interface Stats {
   total_users: number;
   active_users: number;
@@ -57,7 +55,6 @@ interface DashboardResponse {
   profiles: UserProfile[];
 }
 
-// === Utility: shorten long public keys ===
 const shortenKey = (key: string, front: number = 10, back: number = 10) => {
   if (!key) return "";
   if (key.length <= front + back) return key;
@@ -65,31 +62,24 @@ const shortenKey = (key: string, front: number = 10, back: number = 10) => {
 };
 
 const UserDashboard: React.FC = () => {
-  const { fetchBankingDashboard, isAuthenticated } = useAuth();
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, bankingDashboardData } = useAuth();
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      if (isAuthenticated) {
-        const dashboard = await fetchBankingDashboard();
-        setData(dashboard);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, [isAuthenticated, fetchBankingDashboard]);
+  if (!isAuthenticated) {
+    return <p className="p-4 text-red-500 text-sm">Please log in to view dashboard</p>;
+  }
 
-  if (loading) return <p className="p-4 text-sm">Loading dashboard...</p>;
-  if (!data) return <p className="p-4 text-red-500 text-sm">Failed to load data</p>;
+  if (!bankingDashboardData) {
+    return <p className="p-4 text-sm">Loading dashboard...</p>;
+  }
+
+  const data = bankingDashboardData as DashboardResponse;
 
   return (
     <div className="p-6 space-y-8">
       {/* === Global Stats === */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(data.stats).map(([key, value]) => (
+        {Object.entries(data?.stats || {}).map(([key, value]) => (
           <Card key={key} className="shadow-md">
             <CardContent className="p-3">
               <p className="text-xs text-muted-foreground capitalize">
@@ -105,7 +95,6 @@ const UserDashboard: React.FC = () => {
       <div className="space-y-6">
         {data.profiles.map((profile) => {
           const isExpanded = expandedUser === profile.user.id;
-
           return (
             <Card key={profile.user.id} className="shadow-md">
               <CardContent className="p-4 space-y-4">
@@ -116,7 +105,6 @@ const UserDashboard: React.FC = () => {
                     <p className="text-xs text-muted-foreground">
                       {profile.user.account_number} • {profile.user.account_type}
                     </p>
-
                     {/* Public Key with Copy Button */}
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-xs font-mono text-muted-foreground">
@@ -139,7 +127,6 @@ const UserDashboard: React.FC = () => {
                       </Button>
                     </div>
                   </div>
-
                   <div className="text-right">
                     <p className="text-sm font-bold">
                       ₦{profile.user.balance.toLocaleString()}
@@ -159,9 +146,7 @@ const UserDashboard: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     className="flex items-center gap-2 text-xs"
-                    onClick={() =>
-                      setExpandedUser(isExpanded ? null : profile.user.id)
-                    }
+                    onClick={() => setExpandedUser(isExpanded ? null : profile.user.id)}
                   >
                     {isExpanded ? "Hide Transactions" : "Show Recent Transactions"}
                     {isExpanded ? (
@@ -170,7 +155,7 @@ const UserDashboard: React.FC = () => {
                       <ChevronDown className="h-3 w-3" />
                     )}
                   </Button>
-
+                  
                   {isExpanded && (
                     <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                       {profile.recent_transactions.length > 0 ? (

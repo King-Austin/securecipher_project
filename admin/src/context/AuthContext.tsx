@@ -11,8 +11,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   rotateKey: (reason: string) => Promise<any | null>;
-  fetchDashboard: () => Promise<any | null>;
-  fetchBankingDashboard: () => Promise<any | null>;
+  dashboardData: any | null;
+  bankingDashboardData: any | null;
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
@@ -22,13 +22,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [dashboardData, setDashboardData] = useState<any | null>(null);
+  const [bankingDashboardData, setBankingDashboardData] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
     localStorage.getItem("isAuthenticated") === "true"
   );
 
-  // Memoized API call function
   const apiCall = useCallback(async (url: string, options?: RequestInit) => {
     try {
       const response = await fetch(url, {
@@ -51,18 +52,69 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && !user) {
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        try {
-          setUser(JSON.parse(savedUser));
-        } catch (err) {
-          console.error("Failed to parse saved user:", err);
-          logout();
-        }
+    const loadStoredData = () => {
+      try {
+        const storedDashboard = localStorage.getItem("dashboardData");
+        const storedBanking = localStorage.getItem("bankingDashboard");
+        const savedUser = localStorage.getItem("user");
+        
+        if (storedDashboard) setDashboardData(JSON.parse(storedDashboard));
+        if (storedBanking) setBankingDashboardData(JSON.parse(storedBanking));
+        if (savedUser) setUser(JSON.parse(savedUser));
+      } catch (err) {
+        console.error("Failed to parse stored data:", err);
       }
+    };
+
+    loadStoredData();
+  }, []);
+
+  const fetchDashboard = useCallback(async (): Promise<any | null> => {
+    if (!isAuthenticated) return null;
+    
+    try {
+      const data = await apiCall("https://securecipher-middleware.onrender.com/api/admin/");
+      localStorage.setItem("dashboardData", JSON.stringify(data));
+      setDashboardData(data);
+      return data;
+    } catch (err) {
+      console.error("Fetch middleware dashboard error:", err);
+      return null;
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, apiCall]);
+
+  const fetchBankingDashboard = useCallback(async (): Promise<any | null> => {
+    if (!isAuthenticated) return null;
+    
+    try {
+      const data = await apiCall("https://securecipher-server.onrender.com/admin-dashboard");
+      localStorage.setItem("bankingDashboard", JSON.stringify(data));
+      setBankingDashboardData(data);
+      return data;
+    } catch (err) {
+      console.error("Fetch banking dashboard error:", err);
+      return null;
+    }
+  }, [isAuthenticated, apiCall]);
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      if (!isAuthenticated) return;
+      
+      try {
+        await fetchDashboard();
+        await fetchBankingDashboard();
+      } catch (err) {
+        console.error("Auto-fetch failed:", err);
+      }
+    };
+
+    fetchAllData();
+
+    // Set up polling for real-time updates
+    const interval = setInterval(fetchDashboard, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchDashboard, fetchBankingDashboard]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     setLoading(true);
@@ -93,6 +145,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = useCallback(() => {
     setUser(null);
     setIsAuthenticated(false);
+    setDashboardData(null);
+    setBankingDashboardData(null);
     setError(null);
     localStorage.clear();
   }, []);
@@ -107,35 +161,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
       
       localStorage.setItem("dashboardData", JSON.stringify(data));
+      setDashboardData(data);
       return data;
     } catch (err) {
       console.error("Rotate key error:", err);
-      return null;
-    }
-  }, [isAuthenticated, apiCall]);
-
-  const fetchDashboard = useCallback(async (): Promise<any | null> => {
-    if (!isAuthenticated) return null;
-    
-    try {
-      const data = await apiCall("https://securecipher-middleware.onrender.com/api/admin/");
-      localStorage.setItem("dashboardData", JSON.stringify(data));
-      return data;
-    } catch (err) {
-      console.error("Fetch middleware dashboard error:", err);
-      return null;
-    }
-  }, [isAuthenticated, apiCall]);
-
-  const fetchBankingDashboard = useCallback(async (): Promise<any | null> => {
-    if (!isAuthenticated) return null;
-    
-    try {
-      const data = await apiCall("https://securecipher-server.onrender.com/admin-dashboard");
-      localStorage.setItem("bankingDashboard", JSON.stringify(data));
-      return data;
-    } catch (err) {
-      console.error("Fetch banking dashboard error:", err);
       return null;
     }
   }, [isAuthenticated, apiCall]);
@@ -147,8 +176,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         rotateKey,
-        fetchDashboard,
-        fetchBankingDashboard,
+        dashboardData,
+        bankingDashboardData,
         isAuthenticated,
         loading,
         error,

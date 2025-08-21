@@ -1,48 +1,43 @@
-import { Card } from '@/components/ui/card';
+import { format } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TransactionChart } from './TransactionChart';
 import { PerformanceStats } from './PerformanceStats';
-import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Key, BarChart3, CheckCircle, Clock } from 'lucide-react';
 
 const Dashboard = () => {
-  const { fetchDashboard } = useAuth();
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { dashboardData, isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const data = await fetchDashboard();
-        setDashboardData(data || {});
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadDashboard();
-  }, [fetchDashboard]);
+  if (!isAuthenticated) {
+    return <p className="p-4 text-red-500">Please log in to view dashboard</p>;
+  }
 
-  if (loading) return <p className="text-center text-gray-500">Loading dashboard...</p>;
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
-  // Active key
-  const activeKey = dashboardData?.middleware_keys?.find((k: any) => k.active);
+  const activeKey = dashboardData.middleware_keys?.[0]; // First key is active
+  const stats = dashboardData.stats || {};
 
-  // Transactions
-  
-  const transactions = dashboardData?.transactions || [];
-  const totalTransactions = transactions.length;
-  const verifiedSignatures = transactions.filter((t: any) => t.status_code === 200).length;
-  const failedSignatures = totalTransactions - verifiedSignatures;
-  const successRate = totalTransactions ? Math.round((verifiedSignatures / totalTransactions) * 100) : 0;
-  const failureRate = totalTransactions ? Math.round((failedSignatures / totalTransactions) * 100) : 0;
+  const StatCard = ({ title, value, subtitle, icon: Icon, color = 'text-primary' }: any) => (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          </div>
+          <Icon className="h-8 w-8 text-muted-foreground opacity-60" />
+        </div>
+      </CardContent>
+    </Card>
+  );
 
-  // Nonces
-  const nonces = dashboardData?.nonces || [];
-  const failedNonces = nonces.filter((n: any) => n.status_code !== 200).length;
-
-  // Helper
   const shortenKey = (key: string) => {
     if (!key) return '';
     const clean = key.replace(/-----.* KEY-----/g, '').replace(/\s+/g, '');
@@ -50,48 +45,72 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2 p-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">Cryptographic activity overview</p>
       </div>
 
-      {/* Active Key */}
-      <Card className="p-4">
-        <h3 className="font-semibold mb-2">Active Key</h3>
-        {activeKey ? (
-          <>
-            <p className="text-sm">Public Key: <code>{shortenKey(activeKey.public_key_pem)}</code></p>
-            <p className="text-sm">Next Rotation: {activeKey.rotated_at ? format(new Date(activeKey.rotated_at), 'MMM dd, yyyy') : 'Unknown'}</p>
-          </>
-        ) : (
-          <p className="text-gray-400 text-sm italic">No active key found</p>
-        )}
+      {/* Active Key Card */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-lg font-semibold">Active Key</CardTitle>
+          <Key className="h-5 w-5 text-blue-600" />
+        </CardHeader>
+        <CardContent>
+          {activeKey ? (
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Public Key</p>
+                <code className="text-sm font-mono bg-blue-100 px-2 py-1 rounded">
+                  {shortenKey(activeKey.public_key_pem)}
+                </code>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Next Rotation</p>
+                <p className="text-sm">
+                  {format(
+                    activeKey.rotated_at 
+                      ? new Date(activeKey.rotated_at)
+                      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                    'MMM dd, yyyy'
+                  )}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground italic">No active key found</p>
+          )}
+        </CardContent>
       </Card>
 
-      {/* Transactions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <h4 className="text-sm font-medium">Total Transactions</h4>
-          <p className="text-2xl font-bold text-primary">{totalTransactions}</p>
-        </Card>
-
-        <Card className="p-4">
-          <h4 className="text-sm font-medium">Verified Signatures</h4>
-          <p className="text-2xl font-bold text-green-600">{verifiedSignatures}</p>
-          <p className="text-xs text-gray-500">{successRate}% success</p>
-        </Card>
-
-        <Card className="p-4">
-          <h4 className="text-sm font-medium">Valid Nonces</h4>
-          <p className="text-2xl font-bold text-red-600">{failedNonces}</p>
-          <p className="text-xs text-gray-500">{failureRate}% error</p>
-        </Card>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          title="Total Transactions"
+          value={stats.total_transactions_24h || 0}
+          icon={BarChart3}
+          color="text-blue-600"
+        />
+        <StatCard
+          title="Verified Signatures"
+          value={stats.successful_transactions_24h || 0}
+          subtitle={`${stats.success_rate_24h || 0}% success rate`}
+          icon={CheckCircle}
+          color="text-green-600"
+        />
+        <StatCard
+          title="Failed Signatures"
+          value={stats.failed_transactions_24h || 0}
+          subtitle={`${100 - (stats.success_rate_24h || 0)}% failure rate`}
+          icon={Clock}
+          color="text-red-600"
+        />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TransactionChart />
         <PerformanceStats />
       </div>
