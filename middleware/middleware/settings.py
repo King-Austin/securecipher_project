@@ -222,6 +222,7 @@ BANK_NAME = 'SecureCipher Middleware'
 BANK_CODE = 'SCM'
 BANK_SLOGAN = 'Secure. Encrypted. Trusted.'
 
+from cryptography.fernet import Fernet
 #Fernet key must be 32 url-safe base64-encoded bytes.
-FIELD_ENCRYPTION_KEY = os.getenv('SECRET_KEY', 'bXlTZWNyZXRGaWVsZEVuY3J5cHRpb25LZXk=')    
-FIELD_ENCRYPTION_KEY = FIELD_ENCRYPTION_KEY.encode('utf-8')
+FIELD_KEY = os.getenv('SECRET_KEY').encode('utf-8')
+FIELD_ENCRYPTION_KEY = FIELD_KEY

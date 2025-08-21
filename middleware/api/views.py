@@ -16,6 +16,9 @@ import json
 import time
 import traceback
 import uuid
+from django.db.models import Count, Avg, Q, F
+from django.utils import timezone
+from datetime import timedelta
 
 
 
@@ -56,7 +59,6 @@ from modules import transaction_metadata as tx_meta
 from modules import audit_logs
 
 class RotateMiddlewareKeyView(APIView):
-
     def post(self, request):
         """
         Rotates the active middleware key:
@@ -67,29 +69,11 @@ class RotateMiddlewareKeyView(APIView):
         """
         reason = (request.data or {}).get("reason") or "admin-initiated rotation"
         key_manager.rotate_middleware_key(reason=reason)
+        
+        # Return the admin data directly instead of trying to call the class method
+        admin_view = AdminDataCollectionView()
+        return admin_view.get(request)
 
-        # Build refreshed admin dataset so the frontend can overwrite local storage in a single pass.
-        keys = MiddlewareKeySerializer(MiddlewareKey.objects.all(), many=True).data
-        rotations = KeyRotationLogSerializer(KeyRotationLog.objects.all(), many=True).data
-        nonces = UsedNonceSerializer(UsedNonce.objects.all(), many=True).data
-        transactions = TransactionMetadataSerializer(TransactionMetadata.objects.all(), many=True).data
-        audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
-
-        # Build unified response
-        return Response({
-            "middleware_keys": keys,
-            "key_rotations": rotations,
-            "nonces": nonces,
-            "transactions": transactions,
-            "audit_logs": audits,
-        }, status=status.HTTP_200_OK)
-
-
-    
-
-from django.db.models import Count, Avg, Q, F
-from django.utils import timezone
-from datetime import timedelta
 
 class AdminDataCollectionView(APIView):
     """
@@ -105,12 +89,9 @@ class AdminDataCollectionView(APIView):
         audits = AuditLogSerializer(AuditLog.objects.all(), many=True).data
 
         # Compute statistics
-        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
         
         # Transaction stats
-        recent_transactions = TransactionMetadata.objects.filter(
-            created_at__gte=twenty_four_hours_ago
-        )
+        recent_transactions = TransactionMetadata.objects.all()
         total_recent_tx = recent_transactions.count()
         successful_tx = recent_transactions.filter(status_code=200).count()
         failed_tx = total_recent_tx - successful_tx
@@ -119,9 +100,7 @@ class AdminDataCollectionView(APIView):
         )['avg_time'] or 0
 
         # Nonce stats
-        recent_nonces = UsedNonce.objects.filter(
-            created_at__gte=twenty_four_hours_ago
-        )
+        recent_nonces = UsedNonce.objects.all()
         valid_nonces = recent_nonces.count()  # Assuming all stored nonces are valid
 
         # Key stats
@@ -422,7 +401,6 @@ def secure_gateway(request):
         tx_meta.update_transaction_metadata(
             txn_id,
             status_code=int(downstream_status),
-            decryption_time_ms=tx_meta.get_field(txn_id, "decryption_time_ms"),  # if your helper stores interim
             encryption_time_ms=enc_ms,
             processing_time_ms=total_ms,
             response_size_bytes=len(json.dumps(frontend_env)),
@@ -433,4 +411,5 @@ def secure_gateway(request):
         audit_logs.log_event(txn_id, "metadata_update_warning", {"error": str(e)})
 
     audit_logs.log_event(txn_id, "request_complete", {"t_ms": round(total_ms, 2)})
+    
     return Response(frontend_env, status=downstream_status)
