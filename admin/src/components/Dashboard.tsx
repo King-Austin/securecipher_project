@@ -30,6 +30,7 @@ const Dashboard = () => {
   const activeKey = dashboardData?.middleware_keys?.find((k: any) => k.active);
 
   // Transactions
+  
   const transactions = dashboardData?.transactions || [];
   const totalTransactions = transactions.length;
   const verifiedSignatures = transactions.filter((t: any) => t.status_code === 200).length;
@@ -83,7 +84,7 @@ const Dashboard = () => {
         </Card>
 
         <Card className="p-4">
-          <h4 className="text-sm font-medium">Failed Nonces</h4>
+          <h4 className="text-sm font-medium">Valid Nonces</h4>
           <p className="text-2xl font-bold text-red-600">{failedNonces}</p>
           <p className="text-xs text-gray-500">{failureRate}% error</p>
         </Card>

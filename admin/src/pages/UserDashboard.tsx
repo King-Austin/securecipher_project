@@ -120,7 +120,7 @@ const UserDashboard: React.FC = () => {
                     {/* Public Key with Copy Button */}
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-xs font-mono text-muted-foreground">
-                        Key: <span className="font-bold">{shortenKey(profile.user.public_key)}</span>
+                        ECDSA_Pub Key: <span className="font-bold">{shortenKey(profile.user.public_key)}</span>
                       </p>
                       <Button
                         variant="outline"
@@ -190,7 +190,7 @@ const UserDashboard: React.FC = () => {
                                 {parseFloat(txn.amount).toLocaleString()}
                               </p>
                               <p className="text-[11px] text-muted-foreground">
-                                {txn.description}
+                                {txn.sender_name} - {txn.recipient_name}
                               </p>
                             </div>
                             <div className="text-[11px] text-muted-foreground">

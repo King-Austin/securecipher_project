@@ -8,20 +8,25 @@ import { toast } from 'sonner';
 export const LoginForm = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    
     try {
       const success = await login(username, password);
       if (success) {
-        toast.success('✅ Login successful');
+        toast.success(' Login successful');
       } else {
-        toast.error('❌ Invalid username or password');
+        toast.error('Invalid username or password');
       }
     } catch (err) {
       console.error("Login error:", err);
       toast.error('⚠️ Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -37,14 +42,24 @@ export const LoginForm = () => {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              disabled={isLoading}
+              required
             />
             <Input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              required
             />
-            <Button type="submit" className="w-full">Login</Button>
+            <Button 
+              type="submit" 
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
+            </Button>
           </form>
         </CardContent>
       </Card>
