@@ -2,7 +2,6 @@ import { useState } from 'react';
 import AccountSummary from '../components/dashboard/AccountSummary';
 import QuickActions from '../components/dashboard/QuickActions';
 import RecentTransactions from '../components/dashboard/RecentTransactions';
-import SpendingInsights from '../components/dashboard/SpendingInsights';
 import PinModal from '../components/common/PinModal';
 import { secureRequest } from '../services/secureApi';
 
@@ -103,9 +102,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2">
           <RecentTransactions />
         </div>
-        <div>
-          <SpendingInsights />
-        </div>
+
       </div>
 
       {/* PIN Modal for refresh */}
