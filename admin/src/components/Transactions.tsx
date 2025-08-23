@@ -108,3 +108,5 @@ export const TransactionChart = () => {
     </Card>
   );
 };
+
+export default TransactionChart;
