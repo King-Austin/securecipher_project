@@ -38,9 +38,9 @@ class TransactionMetadataSerializer(serializers.ModelSerializer):
             "id", "transaction_id", "client_ip", "created_at",
             "processing_time_ms", "banking_route", "payload_size_bytes", "session_key_hash",
             "client_signature_verified", "middleware_signature",
-            "status_code", "response_size_bytes", "downstream_response_time_ms",
-            "error_message", "error_step"
-                            ]
+            "status_code", "response_size_bytes", "downstream_response_time_ms", "decryption_time_ms", "encryption_time_ms"
+        ]
+
 
 
 class AuditLogSerializer(serializers.ModelSerializer):

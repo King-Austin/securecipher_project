@@ -14,6 +14,8 @@ export async function generateSigningKeyPair() {
         ['sign', 'verify']
     );
 }
+
+
 export async function generateEphemeralKeyPair() {
     return await window.crypto.subtle.generateKey(
         { name: 'ECDH', namedCurve: 'P-384' },
@@ -21,6 +23,10 @@ export async function generateEphemeralKeyPair() {
         ['deriveKey', 'deriveBits']
     );
 }
+
+
+
+
 
 // --- Key Export/Import ---
 export async function exportPublicKeyAsPem(publicKey) {
@@ -60,6 +66,8 @@ export async function deriveSessionKey(sharedSecret) {
         false,
         ['deriveKey']
     );
+
+    
     return await window.crypto.subtle.deriveKey(
         {
             name: 'HKDF',
@@ -213,40 +221,6 @@ export async function fetchEncryptedPrivateKey() {
     }
 }
 
-// export async function clearAllKeyData() {
-//     try {
-//         const db = await dbPromise;
-        
-//         // Clear all data from the keys object store
-//         await db.clear('keys');
-        
-//         // Close the database connection
-//         db.close();
-        
-//         // Delete the entire database for complete cleanup
-//         await new Promise((resolve, reject) => {
-//             const deleteReq = indexedDB.deleteDatabase('secure-cipher-bank');
-//             deleteReq.onsuccess = () => resolve();
-//             deleteReq.onerror = () => reject(deleteReq.error);
-//             deleteReq.onblocked = () => {
-//                 console.warn('Database deletion blocked, but continuing...');
-//                 resolve(); // Continue even if blocked
-//             };
-//         });
-        
-//         // Reset the database promise to create a fresh connection
-//         dbPromise = createDbConnection();
-        
-//         console.log('All cryptographic key data cleared from IndexedDB');
-//         return true;
-//     } catch (error) {
-//         console.error('Error clearing IndexedDB data:', error);
-        
-//         // Even if clearing fails, reset the connection
-//         dbPromise = createDbConnection();
-//         throw error;
-//     }
-// }
 
 // --- Encrypt/Decrypt Private Key with PIN ---
 export async function deriveEncryptionKey(pin, salt) {
@@ -279,7 +253,7 @@ export async function encryptPrivateKey(privateKey, pin) {
     const pkcs8 = await window.crypto.subtle.exportKey('pkcs8', privateKey);
     const encrypted = await window.crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
-        key,
+        key,b
         pkcs8
     );
     return { encrypted, salt, iv };

@@ -155,6 +155,8 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
         nonce,
         timestamp: timestamp
     };
+
+
     console.log('[Payload] Secure payload (before encryption):', securePayload);
 
     // Step 7: Encrypt payload

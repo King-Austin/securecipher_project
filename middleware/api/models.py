@@ -77,9 +77,6 @@ class TransactionMetadata(models.Model):
     status_code = models.IntegerField(null=True, blank=True)
     response_size_bytes = models.IntegerField(null=True, blank=True)
     downstream_response_time_ms = models.FloatField(null=True, blank=True)
-    error_message = models.TextField(null=True, blank=True)
-    error_step = models.CharField(max_length=128, null=True, blank=True)
-    details = models.JSONField(null=True, blank=True)
     banking_route = models.CharField(max_length=128, null=True, blank=True) #The banking endpoint
 
     class Meta:

@@ -2,7 +2,7 @@
 # Centralized API endpoints configuration
 
 # Base URLs - change these for different environments
-MIDDLEWARE_BASE_URL = 'http://localhost:8000'
+MIDDLEWARE_BASE_URL = 'http://localhost:8000'  #Won be affected as connection is hardly sent there
 
 # API Endpoints
 API_ENDPOINTS = {

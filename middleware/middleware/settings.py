@@ -23,7 +23,7 @@ load_dotenv()
 SECRET_KEY = os.getenv('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+DEBUG = True #os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 
 
@@ -98,21 +98,27 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME'),
+#         'USER': os.getenv('DB_USER'),
+#         'PASSWORD': os.getenv('DB_PASSWORD'),
+#         'HOST': os.getenv('DB_HOST'),
+#         'PORT': os.getenv('DB_PORT'),
+#         'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+#         'OPTIONS': {
+#             'sslmode': os.getenv('DB_SSLMODE', 'require'),
+#         },
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
-        'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
-        'OPTIONS': {
-            'sslmode': os.getenv('DB_SSLMODE', 'require'),
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
 
 
 # Password validation
@@ -186,31 +192,36 @@ AUTH_USER_MODEL = 'auth.User'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Simple logging for development
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'root': {
-#         'handlers': ['console'],
-#         'level': 'INFO',
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console'],
-#             'level': 'INFO',
-#             'propagate': False,
-#         },
-#         'core': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#             'propagate': False,
-#         },
-#     },
-# }
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",  # set root level to INFO so it won't spam debug
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",  # default framework logs
+            "propagate": False,
+        },
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "WARNING",  # suppress SQL unless it errors
+            "propagate": False,
+        },
+        "middleware_app": {  # <--- your custom app/module
+            "handlers": ["console"],
+            "level": "DEBUG",  # keep detailed logs for your code
+            "propagate": False,
+        },
+    },
+}
 
 # Admin Site Configuration for SecureCipher Middleware
 ADMIN_SITE_HEADER = 'SecureCipher Middleware Administration'

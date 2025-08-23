@@ -71,6 +71,12 @@ def derive_keys(shared_secret: bytes) -> bytes:
     return HKDF(algorithm=hashes.SHA384(), length=SESSION_KEY_LENGTH, salt=b"", info=SESSION_KEY_INFO).derive(shared_secret)
 
 def derive_session_key_from_peer(peer_public_der: bytes, our_private_key) -> bytes:
+    if isinstance(peer_public_der, ec.EllipticCurvePublicKey):
+        peer_pub = peer_public_der
+    else:
+        # Otherwise assume DER bytes
+        peer_pub = serialization.load_der_public_key(peer_public_der)
+        
     peer_pub = serialization.load_der_public_key(peer_public_der)
     shared = our_private_key.exchange(ec.ECDH(), peer_pub)
     return derive_keys(shared)

@@ -23,8 +23,8 @@ load_dotenv()
 SECRET_KEY = os.getenv('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
-
+DEBUG = True #os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+TEST_MODE=False
 
 ALLOWED_HOSTS = [
     '*'
@@ -47,7 +47,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',   # <— insert here
+    'whitenoise.middleware.WhiteNoiseMiddleware',   
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -89,21 +89,28 @@ STATICFILES_DIRS = [
 # The file storage engine to use when collecting static files with the collectstatic management command.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Database
 
 # Replace the DATABASES section of your settings.py with this
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME'),
+#         'USER': os.getenv('DB_USER'),
+#         'PASSWORD': os.getenv('DB_PASSWORD'),
+#         'HOST': os.getenv('DB_HOST'),
+#         'PORT': os.getenv('DB_PORT'),
+#         'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+#         'OPTIONS': {
+#             'sslmode': os.getenv('DB_SSLMODE', 'require'),
+#         },
+#     }
+# }
+
+# Use the Sqlite database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
-        'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
-        'OPTIONS': {
-            'sslmode': os.getenv('DB_SSLMODE', 'require'),
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -149,12 +156,7 @@ REST_FRAMEWORK = {
 
 
 
-# Banking App Specific Settings
-TRANSACTION_DAILY_LIMIT = 50000.00
-MINIMUM_BALANCE = 100.00
-ACCOUNT_NUMBER_LENGTH = 10
-DEMO_ACCOUNT_BALANCE = 50000.00
-DEFAULT_CURRENCY = 'NGN'
+
 
 # CORS Settings for React Frontend - Very permissive for development
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development!
@@ -207,10 +209,7 @@ ADMIN_SITE_HEADER = 'SecureCipher Banking Administration'
 ADMIN_SITE_TITLE = 'SecureCipher Banking Admin'
 ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Banking Administration'
 
-# SecureCipher Banking Configuration
-BANK_NAME = 'SecureCipher Bank'
-BANK_CODE = 'SCB'
-BANK_SLOGAN = 'Secure. Encrypted. Trusted.'
+
 
 from cryptography.fernet import Fernet
 #Fernet key must be 32 url-safe base64-encoded bytes.

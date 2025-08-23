@@ -6,6 +6,15 @@ interface User {
   email: string;
 }
 
+/*
+Uncomment this for local development
+const MIDDLEWARE_URL = 'http://localhost:8000'; 
+const SERVER_URL = "http://localhost:8001"; 
+*/
+
+const MIDDLEWARE_URL = "https://securecipher-middleware.onrender.com";
+const SERVER_URL = "https://securecipher-server.onrender.com";
+
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
@@ -73,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!isAuthenticated) return null;
     
     try {
-      const data = await apiCall("https://securecipher-middleware.onrender.com/api/admin/");
+      const data = await apiCall(`${MIDDLEWARE_URL}/api/admin/`);
       localStorage.setItem("dashboardData", JSON.stringify(data));
       setDashboardData(data);
       return data;
@@ -87,7 +96,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!isAuthenticated) return null;
     
     try {
-      const data = await apiCall("https://securecipher-server.onrender.com/admin-dashboard");
+      const data = await apiCall(`${SERVER_URL}/admin-dashboard`);
       localStorage.setItem("bankingDashboard", JSON.stringify(data));
       setBankingDashboardData(data);
       return data;
@@ -112,7 +121,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchAllData();
 
     // Set up polling for real-time updates
-    const interval = setInterval(fetchDashboard, 30000);
+    const interval = setInterval(fetchDashboard, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchDashboard, fetchBankingDashboard]);
 
@@ -121,7 +130,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      const data = await apiCall("https://securecipher-middleware.onrender.com/api/login/", {
+      const data = await apiCall(`${MIDDLEWARE_URL}/api/login/`, {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
@@ -155,7 +164,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!isAuthenticated) return null;
     
     try {
-      const data = await apiCall("https://securecipher-middleware.onrender.com/api/rotate-key/", {
+      const data = await apiCall(`${MIDDLEWARE_URL}/api/rotate-key/`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
