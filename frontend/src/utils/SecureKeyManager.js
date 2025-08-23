@@ -261,6 +261,7 @@ export async function encryptPrivateKey(privateKey, pin) {
 
 export async function decryptPrivateKey(encrypted, pin, salt, iv) {
     try {
+        
         const key = await deriveEncryptionKey(pin, salt);
         const pkcs8 = await window.crypto.subtle.decrypt(
             { name: 'AES-GCM', iv },
