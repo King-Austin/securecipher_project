@@ -1,79 +1,110 @@
-// Transactions.tsx
-import React, { useContext } from "react";
-import { useAuth } from "../context/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useState, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { format, subHours, startOfHour, startOfDay } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
-export default function Transactions() {
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+export const TransactionChart = () => {
   const { dashboardData } = useAuth();
+  const [view, setView] = useState<'24h' | 'all'>('24h');
 
-  // Transactions come from AuthContext state
   const transactions = dashboardData?.transactions || [];
 
-  return (
-    <div className="p-6">
-      <Card className="shadow-lg rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">Transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto  scrollbar-track-gray-100">
-            <Table className="min-w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Txn ID</TableHead>
-                  <TableHead>Client IP</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead>Processing Time (ms)</TableHead>
-                  <TableHead>Endpoint</TableHead>
-                  <TableHead>Payload Size (bytes)</TableHead>
-                  <TableHead>Session Key Hash</TableHead>
-                  <TableHead>Client Sig Verified</TableHead>
-                  <TableHead>Middleware Signature</TableHead>
-                  <TableHead>Status Code</TableHead>
-                  <TableHead>Response Size (bytes)</TableHead>
-                  <TableHead>Decryption (ms)</TableHead>
-                  <TableHead>Encryption (ms)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.length > 0 ? (
-                  transactions.map((tx: any) => (
-                    <TableRow key={tx.id}>
-                      <TableCell>{tx.transaction_id}</TableCell>
-                      <TableCell>{tx.client_ip}</TableCell>
-                      <TableCell>{new Date(tx.created_at).toLocaleString()}</TableCell>
-                      <TableCell>
-                        {tx.processing_time_ms != null ? Number(tx.processing_time_ms).toFixed(2) : "N/A"}
-                      </TableCell>
-                      <TableCell>{tx.banking_route}</TableCell>
-                      <TableCell>{tx.payload_size_bytes}</TableCell>
-                      <TableCell className="truncate max-w-xs">{tx.session_key_hash}</TableCell>
-                      <TableCell>{tx.client_signature_verified ? "✅" : "❌ No"}</TableCell>
-                      <TableCell className="truncate max-w-xs">{tx.middleware_signature}</TableCell>
-                      <TableCell>{tx.status_code}</TableCell>
-                      <TableCell>{tx.response_size_bytes}</TableCell>
-                      <TableCell>
-                        {tx.decryption_time_ms != null ? Number(tx.decryption_time_ms).toFixed(2) : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {tx.encryption_time_ms != null ? Number(tx.encryption_time_ms).toFixed(2) : "N/A"}
-                      </TableCell>
+  // --- Last 24 hours, hourly ---
+  const last24Hours = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => {
+      const hour = startOfHour(subHours(new Date(), 23 - i));
+      const count = transactions.filter(
+        t => startOfHour(new Date(t.created_at)).getTime() === hour.getTime()
+      ).length;
+      return {
+        label: format(hour, 'HH:00'),
+        count,
+      };
+    });
+  }, [transactions]);
 
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={13} className="text-center">
-                      No transactions found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+  // --- All time, grouped by day ---
+  const allTimeDaily = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    transactions.forEach(t => {
+      const day = format(startOfDay(new Date(t.created_at)), 'yyyy-MM-dd');
+      grouped[day] = (grouped[day] || 0) + 1;
+    });
+
+    return Object.entries(grouped)
+      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+      .map(([day, count]) => ({
+        label: format(new Date(day), 'MMM d'),
+        count,
+      }));
+  }, [transactions]);
+
+  const dataSet = view === '24h' ? last24Hours : allTimeDaily;
+
+  const chartData = {
+    labels: dataSet.map(d => d.label),
+    datasets: [
+      {
+        label: view === '24h' ? 'Transactions per Hour' : 'Transactions per Day',
+        data: dataSet.map(d => d.count),
+        backgroundColor: 'hsl(var(--primary))',
+        borderColor: 'hsl(var(--primary))',
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' as const },
+      title: { display: false },
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 } },
+      x: { title: { display: true, text: view === '24h' ? 'Hour' : 'Day' } },
+    },
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex justify-between items-center">
+        <CardTitle>
+          Transaction Volume ({view === '24h' ? 'Last 24 Hours' : 'All Time'})
+        </CardTitle>
+        <div className="space-x-2">
+          <Button
+            variant={view === '24h' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('24h')}
+          >
+            24h
+          </Button>
+          <Button
+            variant={view === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('all')}
+          >
+            All Time
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Bar data={chartData} options={options} />
+      </CardContent>
+    </Card>
   );
-}
+};
