@@ -12,7 +12,7 @@ import Cards from './pages/Cards';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
 import IframeEmbed from './components/IframeEmbed';
-
+import SecureCipherLanding from './pages/LandingPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import './App.css';
 
@@ -47,12 +47,12 @@ function AppRoutes() {
   return (
     <Routes>
         <Route
-          path="/"
+          path=""
           element={
             authChecked
               ? isAuthenticated
-                ? <Navigate to="/dashboard" />
-                : <Navigate to="/login" />
+                ? <Navigate to="/index" />
+                : <Navigate to="/index" />
               : null
           }
         />
@@ -62,6 +62,7 @@ function AppRoutes() {
 
       {/* Protected */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/index" element={<SecureCipherLanding />} />
       <Route path="/send-money" element={<ProtectedRoute><SendMoney /></ProtectedRoute>} />
       <Route path="/security-details" element={<ProtectedRoute><SecurityDetails /></ProtectedRoute>} />
       <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />

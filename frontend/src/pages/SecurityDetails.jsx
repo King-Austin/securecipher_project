@@ -125,7 +125,29 @@ export default function SecurityDetails() {
       setIsVerifying(false);
     }
   };
+// ... existing code ...
 
+function getBrowserName() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Chrome') && !ua.includes('Edg')) return 'Chrome';
+    if (ua.includes('Firefox')) return 'Firefox';
+    if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari';
+    if (ua.includes('Edg')) return 'Edge';
+    if (ua.includes('MSIE') || ua.includes('Trident')) return 'Internet Explorer';
+    return 'Unknown Browser';
+}
+
+async function getUserIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip || 'Unable to retrieve';
+    } catch (error) {
+        return 'Unable to retrieve';
+    }
+}
+
+// ... existing code ...
   const formattedKey = (pem) => {
     if (!pem) return '';
     const clean = pem.replace(/-----.*-----|\n/g, '');
@@ -418,9 +440,9 @@ export default function SecurityDetails() {
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="text-sm text-gray-600 space-y-2">
                 <div><strong>Platform:</strong> {navigator.platform || '—'}</div>
-                <div><strong>Browser:</strong> {String(navigator.userAgent || '').split(') ')[0] || '—'}</div>
+                <div><strong>Browser:</strong> {getBrowserName()}</div>
+                <div><strong>User Agent:</strong> {navigator.userAgent || '—'}</div>
                 <div><strong>Last Access:</strong> {new Date().toLocaleString()}</div>
-                <div><strong>IP Address:</strong> Masked for privacy</div>
               </div>
             </div>
           </div>
