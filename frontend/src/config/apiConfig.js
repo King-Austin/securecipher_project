@@ -2,8 +2,8 @@
 // Centralized API endpoints configuration
 
 // Base URL for middleware API - change this for different environments
-// export const MIDDLEWARE_BASE_URL = 'https://securecipher-middleware.onrender.com';
-export const MIDDLEWARE_BASE_URL = 'http://localhost:8000'; // For local development
+export const MIDDLEWARE_BASE_URL = 'https://securecipher-middleware.onrender.com';
+// export const MIDDLEWARE_BASE_URL = 'http://localhost:8000'; // For local development
 // API Endpoints
 export const API_ENDPOINTS = {
   MIDDLEWARE_GATEWAY: `${MIDDLEWARE_BASE_URL}/api/gateway/`,

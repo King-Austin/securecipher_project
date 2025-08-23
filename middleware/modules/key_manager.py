@@ -1,5 +1,6 @@
 # key_manager.py
 from typing import Tuple
+from django.db.models import Max
 from cryptography.hazmat.primitives import serialization
 from venv import logger
 from django.utils import timezone
@@ -8,11 +9,11 @@ from .crypto_engine import perform_ecdhe, derive_session_key_from_peer
 # ... existing code ...
 
 def get_active_middleware_key() -> MiddlewareKey:
-    active = MiddlewareKey.objects.filter(active=True).order_by("-version").first()
+    active = MiddlewareKey.objects.filter(active=True).first()
     if active:
         return active
-
-    # create new key
+    
+    # Only create new key if no active key exists
     priv, pub_der = perform_ecdhe()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
@@ -24,11 +25,17 @@ def get_active_middleware_key() -> MiddlewareKey:
         serialization.PublicFormat.SubjectPublicKeyInfo
     ).decode()
 
-    return MiddlewareKey.objects.create(
-        label="active", private_key_pem=priv_pem, public_key_pem=pub_pem,
-        version=1, active=True
-    )
+    # Get next version number
+    latest_version = MiddlewareKey.objects.aggregate(Max('version'))['version__max'] or 0
+    new_version = latest_version + 1
 
+    return MiddlewareKey.objects.create(
+        label="active", 
+        private_key_pem=priv_pem, 
+        public_key_pem=pub_pem,
+        version=new_version, 
+        active=True
+    )
 
 def derive_session_key(client_ephemeral_der: bytes) -> bytes:
     """
