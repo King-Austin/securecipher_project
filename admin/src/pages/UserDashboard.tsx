@@ -50,7 +50,7 @@ interface UserProfile {
   recent_transactions: Transaction[];
 }
 
-interface DashboardResponse {
+interface bankingDashboardData {
   stats: Stats;
   profiles: UserProfile[];
 }
@@ -73,7 +73,7 @@ const UserDashboard: React.FC = () => {
     return <p className="p-4 text-sm">Loading dashboard...</p>;
   }
 
-  const data = bankingDashboardData as DashboardResponse;
+  const data = bankingDashboardData;
 
   return (
     <div className="p-6 space-y-8">
