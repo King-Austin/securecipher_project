@@ -10,17 +10,8 @@ from .crypto_engine import perform_ecdhe, derive_session_key_from_peer
 def get_active_middleware_key() -> MiddlewareKey:
     active = MiddlewareKey.objects.filter(active=True).order_by("-version").first()
     if active:
-        # Validate the private key format before returning
-        try:
-            serialization.load_pem_private_key(active.private_key_pem.encode(), password=None)
-            print(active.private_key_pem)
-            return active
-        except ValueError as e:
-            logger.error(f"Corrupted private key for active middleware key version {active.version}: {e}")
-            # Mark as inactive and create a new one
-            active.active = False
-            active.save()
-    
+        return active
+
     # create new key
     priv, pub_der = perform_ecdhe()
     priv_pem = priv.private_bytes(
@@ -37,6 +28,7 @@ def get_active_middleware_key() -> MiddlewareKey:
         label="active", private_key_pem=priv_pem, public_key_pem=pub_pem,
         version=1, active=True
     )
+
 
 def derive_session_key(client_ephemeral_der: bytes) -> bytes:
     """
