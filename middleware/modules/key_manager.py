@@ -43,6 +43,7 @@ def derive_session_key(client_ephemeral_der: bytes) -> bytes:
     mk = get_active_middleware_key()
     try:
         our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
+        print(f"Our private key: {our_private}")
         return derive_session_key_from_peer(client_ephemeral_der, our_private)
     except ValueError as e:
         logger.error(f"Failed to load private key for middleware key version {mk.version}: {e}")

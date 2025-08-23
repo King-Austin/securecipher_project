@@ -12,7 +12,7 @@ class MiddlewareKey(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=64, default="active", db_index=True)
-    private_key_pem = EncryptedCharField(verbose_name="Private Key", max_length=500)
+    private_key_pem = EncryptedCharField(verbose_name="Private Key", max_length=1024)
     public_key_pem = models.TextField(help_text="PEM encoded public key")
     version = models.PositiveIntegerField(default=1)
     active = models.BooleanField(default=True)
