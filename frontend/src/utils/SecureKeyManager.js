@@ -1,9 +1,20 @@
-// --- Base64 Utilities ---
+// Replace with more robust base64 implementation
 export function toBase64(arrayBuffer) {
-    return btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
+
 export function fromBase64(base64String) {
-    return Uint8Array.from(atob(base64String), c => c.charCodeAt(0));
+  const binaryString = atob(base64String);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
 }
 
 // --- Key Generation ---
@@ -72,7 +83,7 @@ export async function deriveSessionKey(sharedSecret) {
         {
             name: 'HKDF',
             hash: 'SHA-384',
-            salt: new Uint8Array(),
+            salt: new TextEncoder().encode('secure-session-salt'), // Add proper salt
             info: new TextEncoder().encode('secure-cipher-session-key')
         },
         keyMaterial,
@@ -125,11 +136,11 @@ export async function signTransaction(payload, privateKey) {
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    console.log('data hash (SHA-256):', hashHex);
+    console.log('data hash (SHA-384):', hashHex);
 
-    // Sign the data using ECDSA with SHA-256
+    // Sign the data using ECDSA with SHA-384
     const signature = await window.crypto.subtle.sign(
-        { name: 'ECDSA', hash: { name: 'SHA-256' } },
+        { name: 'ECDSA', hash: { name: 'SHA-384' } },
         privateKey,
         data
     );

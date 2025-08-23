@@ -223,6 +223,21 @@ LOGGING = {
     },
 }
 
+
+# Base URL for banking API - change this for different environments
+BANKING_API_BASE_URL = 'https://securecipher-server.onrender.com' #uncomment this for production
+# BANKING_API_BASE_URL = 'http://localhost:8001'  # Use localhost for development
+
+# API Endpoints
+ROUTING_TABLE = {
+    'register': f'{BANKING_API_BASE_URL}/register',
+    'validate_account': f'{BANKING_API_BASE_URL}/validate_account/',
+    'transfer': f'{BANKING_API_BASE_URL}/transfer/',
+    'public_key': f'{BANKING_API_BASE_URL}/public-key/',
+    'refresh': f'{BANKING_API_BASE_URL}/refresh/',
+}
+
+
 # Admin Site Configuration for SecureCipher Middleware
 ADMIN_SITE_HEADER = 'SecureCipher Middleware Administration'
 ADMIN_SITE_TITLE = 'SecureCipher Middleware Admin'

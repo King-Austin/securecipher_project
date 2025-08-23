@@ -13,16 +13,15 @@ class CryptoUtils:
     def load_public_key(pem):
         return serialization.load_pem_public_key(pem.encode())
 
-    @staticmethod
+    @staticmethod   
     def load_private_key(pem, password=None):
         return serialization.load_pem_private_key(pem.encode(), password=password)
 
-    @staticmethod
     def verify_signature(public_key_pem, message, signature_b64):
         try:
             key = CryptoUtils.load_public_key(public_key_pem)
             signature = base64.b64decode(signature_b64)
-            key.verify(signature, message, ec.ECDSA(hashes.SHA256()))
+            key.verify(signature, message, ec.ECDSA(hashes.SHA384()))  # Changed to SHA-384
             return True
         except InvalidSignature:
             return False
@@ -30,7 +29,7 @@ class CryptoUtils:
     @staticmethod
     def sign_message(private_key_pem, message):
         key = CryptoUtils.load_private_key(private_key_pem)
-        signature = key.sign(message, ec.ECDSA(hashes.SHA256()))
+        signature = key.sign(message, ec.ECDSA(hashes.SHA384()))  # Changed to SHA-384
         return base64.b64encode(signature).decode()
 
     @staticmethod
@@ -41,9 +40,10 @@ class CryptoUtils:
         return HKDF(
             algorithm=hashes.SHA384(),
             length=32,
-            salt=None,
+            salt=b'secure-session-salt',  # Added salt to match frontend
             info=b'secure-cipher-session-key'
         ).derive(shared)
+
 
     @staticmethod
     def encrypt(plaintext, session_key):
@@ -87,12 +87,32 @@ class CryptoUtils:
         return keypair
 
     @staticmethod
+    def _fix_pem_formatting(pem_str):
+        """Fix common PEM formatting issues"""
+        cleaned = pem_str.strip()
+        
+        # Ensure proper BEGIN/END headers
+        if "BEGIN PUBLIC KEY" in cleaned and "-----" not in cleaned:
+            cleaned = cleaned.replace("BEGIN PUBLIC KEY", "-----BEGIN PUBLIC KEY-----")
+            cleaned = cleaned.replace("END PUBLIC KEY", "-----END PUBLIC KEY-----")
+        
+        # Add line breaks if missing
+        if "-----BEGIN PUBLIC KEY-----" in cleaned and "\n" not in cleaned:
+            base64_content = cleaned.replace("-----BEGIN PUBLIC KEY-----", "")\
+                                   .replace("-----END PUBLIC KEY-----", "")\
+                                   .strip()
+            cleaned = f"-----BEGIN PUBLIC KEY-----\n{base64_content}\n-----END PUBLIC KEY-----"
+        
+        return cleaned
+
+    @staticmethod
     def get_server_private_key():
         return CryptoUtils.get_or_create_server_keypair().private_key
 
     @staticmethod
     def get_server_public_key():
         return CryptoUtils.get_or_create_server_keypair().public_key
+
 
     @staticmethod
     def crypto_preprocess(envelope):
@@ -101,7 +121,7 @@ class CryptoUtils:
         - Decrypts AES-GCM payload using ECDH-derived session key
         - Verifies middleware and client signatures (handles raw/DER)
         - Checks nonce/timestamp for replay protection
-        - Returns transaction_data, session_key, and client info (including client public key hash)
+        - Returns transaction_data, session_key, and Error is Any
         """
         try:
             # 1. Extract envelope fields
@@ -118,7 +138,7 @@ class CryptoUtils:
             session_key = HKDF(
                 algorithm=hashes.SHA384(),
                 length=32,
-                salt=None,
+                salt=b'secure-session-salt',  # Added salt to match frontend/middleware
                 info=b"secure-cipher-session-key"
             ).derive(shared_secret)
 
@@ -127,124 +147,90 @@ class CryptoUtils:
             payload = json.loads(plaintext.decode())
             print("DEBUG: [CryptoPreprocess] Decrypted payload:", payload.keys())
 
-            # 4. Signature checks
-            verify_payload_with_middleware_signature = {
+
+            # 4. Middleware signature verification
+            middleware_payload = json.dumps({
                 "transaction_data": payload["transaction_data"],
                 "client_signature": payload.get("client_signature"),
                 "client_public_key": payload.get("client_public_key"),
                 "nonce": payload.get("nonce")
-            }
- 
-            middleware_payload = json.dumps(verify_payload_with_middleware_signature, separators=(',', ':'), sort_keys=True).encode()
+            }, separators=(',', ':'), sort_keys=True).encode()
 
-
-            # Middleware signature
             middleware_sig = base64.b64decode(payload["middleware_signature"])
+            middleware_pub_key_str = payload["middleware_public_key"]
+            
+            # Fix PEM formatting and load key
             try:
-                middleware_pub = serialization.load_pem_public_key(payload["middleware_public_key"].encode())
-            except ValueError:
-                middleware_pub = serialization.load_der_public_key(base64.b64decode(payload["middleware_public_key"]))
+                if "-----BEGIN PUBLIC KEY-----" in middleware_pub_key_str:
+                    fixed_pem = CryptoUtils._fix_pem_formatting(middleware_pub_key_str)
+                    middleware_pub = serialization.load_pem_public_key(fixed_pem.encode())
+                else:
+                    # Assume DER format
+                    middleware_pub = serialization.load_der_public_key(base64.b64decode(middleware_pub_key_str))
+            except ValueError as e:
+                print(f"DEBUG: [CryptoPreprocess] Failed to load middleware public key: {e}")
+                print(f"DEBUG: [CryptoPreprocess] Key content: {middleware_pub_key_str[:100]}...")
+                return None, None, "Invalid middleware public key format"
 
-            print(f"DEBUG: [CryptoPreprocess] Middleware public key type: {type(middleware_pub)}")
-            from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+
+
+            # Verify middleware signature with SHA-384
             try:
-                signature_length = len(middleware_sig)
-
-                print(f"DEBUG: [CryptoPreprocess] Middleware signature {middleware_sig} length: {signature_length}")
-                if not isinstance(middleware_pub, EllipticCurvePublicKey):
-                    raise TypeError("Middleware public key is not an Elliptic Curve public key")
-                middleware_pub.verify(
-                    middleware_sig,
-                    middleware_payload,
-                    ec.ECDSA(hashes.SHA256())
-                )
+                middleware_pub.verify(middleware_sig, middleware_payload, ec.ECDSA(hashes.SHA384()))
                 print("DEBUG: [CryptoPreprocess] Middleware signature verified")
             except InvalidSignature:
                 print("DEBUG: [CryptoPreprocess] Invalid middleware signature")
                 return None, None, "Invalid middleware signature"
-            except Exception as e:
-                print(f"DEBUG: [CryptoPreprocess] Exception during middleware signature verification: {e}")
-                return None, None, f"Middleware signature verification error: {e}"
 
-            # Client signature (optional)
-                        
-            # Client signature
-            verify_payload_with_client_signature = {
-                "transaction_data": payload["transaction_data"],
-                }
-            client_payload = json.dumps(verify_payload_with_client_signature, separators=(',', ':'), sort_keys=True).encode()
+            # 5. Client signature verification (optional)
             if "client_signature" in payload and "client_public_key" in payload:
+                client_payload = json.dumps({
+                    "transaction_data": payload["transaction_data"],
+                }, separators=(',', ':'), sort_keys=True).encode()
+                
+                client_pub_key_str = payload["client_public_key"]
+                
+                # Fix client public key formatting
+                if "-----BEGIN PUBLIC KEY-----" not in client_pub_key_str:
+                    try:
+                        client_pub_key = serialization.load_der_public_key(base64.b64decode(client_pub_key_str))
+                    except ValueError:
+                        return None, None, "Invalid client public key format"
+                else:
+                    cleaned_pem = client_pub_key_str.strip()
+                    if "\n" not in cleaned_pem:
+                        base64_content = cleaned_pem.replace("-----BEGIN PUBLIC KEY-----", "")\
+                                                  .replace("-----END PUBLIC KEY-----", "")\
+                                                  .strip()
+                        cleaned_pem = f"-----BEGIN PUBLIC KEY-----\n{base64_content}\n-----END PUBLIC KEY-----"
+                    client_pub_key = serialization.load_pem_public_key(cleaned_pem.encode())
+                
+                client_sig = base64.b64decode(payload["client_signature"])
+                
+                # Handle raw signature format
+                if len(client_sig) == 96:  # P-384 raw signature
+                    r = int.from_bytes(client_sig[:48], 'big')
+                    s = int.from_bytes(client_sig[48:], 'big')
+                    client_sig = encode_dss_signature(r, s)
+                
+                # Verify client signature with SHA-384
                 try:
-                    client_pub_key = serialization.load_pem_public_key(payload["client_public_key"].encode())
-                    client_sig = base64.b64decode(payload["client_signature"])
-                    print(f"DEBUG: [CryptoPreprocess] Client signature length: {len(client_sig)}")
-                    # Handle raw (r||s) or DER signature for client
-                    if len(client_sig) == 96:  # P-384 raw signature
-                        r = int.from_bytes(client_sig[:48], 'big')
-                        s = int.from_bytes(client_sig[48:], 'big')
-                        client_sig = encode_dss_signature(r, s)
-                    from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-                    if not isinstance(client_pub_key, EllipticCurvePublicKey):
-                        raise TypeError("Client public key is not an Elliptic Curve public key")
-                    client_pub_key.verify(client_sig, client_payload, ec.ECDSA(hashes.SHA256()))
+                    client_pub_key.verify(client_sig, client_payload, ec.ECDSA(hashes.SHA384()))
                     print("DEBUG: [CryptoPreprocess] Client signature verified")
                 except InvalidSignature:
                     print("DEBUG: [CryptoPreprocess] Invalid client signature")
                     return None, None, "Invalid client signature"
-                except Exception as e:
-                    print(f"DEBUG: [CryptoPreprocess] Exception during client signature verification: {e}")
-                    return None, None, f"Client signature verification error: {e}"
 
-            # 5. Nonce/timestamp checks (implement replay protection as needed)
-            # Example: UsedNonce.objects.filter(nonce=payload["nonce"]).exists() ...
-
-            # 6. Prepare client info
+            # 6. Prepare response data
             transaction_data = payload["transaction_data"]
             if "client_public_key" in payload:
-                client_pubkey_pem = payload["client_public_key"]
-                transaction_data["public_key"] = client_pubkey_pem
+                transaction_data["public_key"] = payload["client_public_key"]
 
-            # 7. Return verified transaction_data, session context, and client info
-            print("DEBUG: [cryptoPreprocess] TransactionData",  payload['transaction_data'])
-
+            print("DEBUG: [cryptoPreprocess] TransactionData", payload['transaction_data'])
             return payload["transaction_data"], session_key, None
 
         except Exception as e:
             print(f"DEBUG: [CryptoPreprocess] Exception: {e}")
             return None, None, str(e)
-        
-
-# Field-level encryption utilities using Fernet (AES-128 in CBC mode)
-from django.conf import settings
-from django.db import models
-import base64
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 
-
-# securecipher/utils/encryption.py
-import base64
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from django.conf import settings
-
-def _get_fernet():
-    # Use PBKDF2 to derive a 32-byte key from SECRET_KEY
-    salt = b"securecipher_encryption_salt"  # static salt for reproducibility
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=390000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(settings.SECRET_KEY.encode()))
-    return Fernet(key)
-
-def encrypt_field(value: str) -> str:
-    return _get_fernet().encrypt(value.encode()).decode()
-
-def decrypt_field(value: str) -> str:
-    return _get_fernet().decrypt(value.encode()).decode()

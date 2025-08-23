@@ -57,7 +57,11 @@ class RegisterView(APIView):
 
     def post(self, request):
         print("DEBUG: [RegisterView.post] Received request data:", request.data)
+
+
         transaction_data, session_key, client_info_or_error = CryptoUtils.crypto_preprocess(request.data)
+
+        
         print(f"DEBUG: [RegisterView.post] transaction_data={transaction_data}, session_key={session_key}, client_info_or_error={client_info_or_error}")
 
         if isinstance(client_info_or_error, str):  # Error string

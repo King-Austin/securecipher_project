@@ -25,7 +25,7 @@ def hash_data(data: bytes) -> str:
 def ecdsa_sign(payload: Dict[str, Any], private_key_pem: str) -> str:
     private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
     message = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
-    sig = private_key.sign(message, ec.ECDSA(hashes.SHA256()))
+    sig = private_key.sign(message, ec.ECDSA(hashes.SHA384()))
     return base64.b64encode(sig).decode()
 
 def ecdsa_verify(payload: Dict[str, Any], signature_b64: str, public_key_str: str) -> bool:
@@ -40,7 +40,7 @@ def ecdsa_verify(payload: Dict[str, Any], signature_b64: str, public_key_str: st
             r = int.from_bytes(sig_bytes[:48], "big")
             s = int.from_bytes(sig_bytes[48:], "big")
             sig_bytes = encode_dss_signature(r, s)
-        public_key.verify(sig_bytes, message, ec.ECDSA(hashes.SHA256()))
+        public_key.verify(sig_bytes, message, ec.ECDSA(hashes.SHA384()))
         return True
     except Exception:
         return False
@@ -67,33 +67,57 @@ def perform_ecdhe() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
     pub_der = pub.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
     return priv, pub_der
 
-def derive_keys(shared_secret: bytes) -> bytes:
-    return HKDF(algorithm=hashes.SHA384(), length=SESSION_KEY_LENGTH, salt=b"", info=SESSION_KEY_INFO).derive(shared_secret)
 
-def derive_session_key_from_peer(peer_public_der: bytes, our_private_key) -> bytes:
-    if isinstance(peer_public_der, ec.EllipticCurvePublicKey):
-        peer_pub = peer_public_der
-    else:
-        # Otherwise assume DER bytes
-        peer_pub = serialization.load_der_public_key(peer_public_der)
-        
-    peer_pub = serialization.load_der_public_key(peer_public_der)
-    shared = our_private_key.exchange(ec.ECDH(), peer_pub)
-    return derive_keys(shared)
+def derive_session_key_from_peer(client_ephemeral_der: bytes, our_private_key) -> bytes:
+    """
+    Derive session key using consistent HKDF parameters with frontend.
+    Frontend sends DER-format public keys, not PEM.
+    """
+    # Load client's public key from DER format (what frontend sends)
+    client_public_key = serialization.load_der_public_key(client_ephemeral_der)
+    
+    # Verify we have a private key for exchange
+    if not hasattr(our_private_key, 'exchange'):
+        raise ValueError("Expected a private key for ECDH exchange, got public key")
+    
+    shared_secret = our_private_key.exchange(ec.ECDH(), client_public_key)
+    
+    # Use HKDF with same parameters as frontend
+    hkdf = HKDF(
+        algorithm=hashes.SHA384(),
+        length=32,  # 256 bits for AES-256
+        salt=b'secure-session-salt',  # Must match frontend
+        info=b'secure-cipher-session-key',  # Must match frontend
+    )
+    
+    return hkdf.derive(shared_secret)
+
+
+
 
 def create_downstream_envelope(payload: Dict[str, Any], bank_public_key_pem: str):
     ephemeral_priv, ephemeral_pub_der = perform_ecdhe()
-    bank_pub = serialization.load_pem_public_key(bank_public_key_pem.encode())
-    if not isinstance(bank_pub.curve, ec.SECP384R1):
-        raise ValueError("Bank public key must use SECP384R1")
-    shared = ephemeral_priv.exchange(ec.ECDH(), bank_pub)
-    session_key = derive_keys(shared)
+    
+    # Bank's public key is in PEM, convert to DER for consistency
+    bank_pub_pem = serialization.load_pem_public_key(bank_public_key_pem.encode())
+    bank_pub_der = bank_pub_pem.public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    
+    session_key = derive_session_key_from_peer(
+        bank_pub_der,          # Bank's public key in DER format
+        ephemeral_priv         # Our ephemeral private key
+    )
+    
     envelope = aes256gcm_encrypt(payload, session_key)
     envelope["ephemeral_pubkey"] = base64.b64encode(ephemeral_pub_der).decode()
     return envelope, session_key
 
+    
+
 def validate_timestamp(timestamp, window_seconds=30):
-    # Example: check if timestamp is within allowed window
+    # Example: check if timestamp is within allowed 30 
     import time
     now = int(time.time())
     return abs(now - timestamp) <= window_seconds
