@@ -6,7 +6,6 @@ from venv import logger
 from django.utils import timezone
 from api.models import MiddlewareKey, KeyRotationLog
 from .crypto_engine import perform_ecdhe, derive_session_key_from_peer
-# ... existing code ...
 
 def get_active_middleware_key() -> MiddlewareKey:
     active = MiddlewareKey.objects.filter(active=True).first()
