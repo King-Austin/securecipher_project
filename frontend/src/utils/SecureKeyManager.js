@@ -253,7 +253,7 @@ export async function encryptPrivateKey(privateKey, pin) {
     const pkcs8 = await window.crypto.subtle.exportKey('pkcs8', privateKey);
     const encrypted = await window.crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
-        key,b
+        key,
         pkcs8
     );
     return { encrypted, salt, iv };
