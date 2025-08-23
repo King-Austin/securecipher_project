@@ -13,6 +13,7 @@ def get_active_middleware_key() -> MiddlewareKey:
         # Validate the private key format before returning
         try:
             serialization.load_pem_private_key(active.private_key_pem.encode(), password=None)
+            print(active.private_key_pem)
             return active
         except ValueError as e:
             logger.error(f"Corrupted private key for active middleware key version {active.version}: {e}")
