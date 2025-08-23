@@ -11,7 +11,6 @@ import Transactions from './pages/Transactions';
 import Cards from './pages/Cards';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
-import IframeEmbed from './components/IframeEmbed';
 import SecureCipherLanding from './pages/LandingPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import './App.css';
@@ -67,7 +66,6 @@ function AppRoutes() {
       <Route path="/security-details" element={<ProtectedRoute><SecurityDetails /></ProtectedRoute>} />
       <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
       <Route path="/cards" element={<ProtectedRoute><Cards /></ProtectedRoute>} />
-      <Route path="/admin" element={<IframeEmbed />} />
 
       {/* Errors */}
       <Route path="/server-error" element={<ServerError />} />
