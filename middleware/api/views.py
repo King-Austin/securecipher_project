@@ -225,7 +225,8 @@ def secure_gateway(request):
 
     txn_id = str(uuid.uuid4())
     t0 = time.perf_counter()
-    client_ip = request.META.get("REMOTE_ADDR", "unknown")
+    
+    client_ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "unknown"))
     session_key = None
 
     logger.info("Request received. txn_id=%s ip=%s", txn_id, client_ip)
