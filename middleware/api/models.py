@@ -107,3 +107,13 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.transaction_id} | {self.event_type} @ {self.timestamp.isoformat()}"
+
+class EphemeralKey(models.Model):
+    session_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
+    private_key_pem = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    ttl_seconds = models.IntegerField(default=300)  # 5 minutes
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.created_at + timezone.timedelta(seconds=self.ttl_seconds)

@@ -14,6 +14,7 @@ from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.core.cache import cache
 from django.db.models import Avg  
+from models import EphemeralKey
 
 
 
@@ -27,6 +28,7 @@ from cryptography.exceptions import InvalidSignature, InvalidTag
 
 # DB models & serializers (unchanged)
 from .models import (
+    EphemeralKey,
     MiddlewareKey,
     KeyRotationLog,
     UsedNonce,
@@ -175,25 +177,24 @@ def get_ephemeral_pub_key(request):
         # 1. Generate ephemeral key pair
         private_key, public_key = crypto_engine.perform_ecdh()
 
-        # 2. Create session ID
-        session_id = str(uuid.uuid4())
 
-        # 3. Cache private key (PEM)
-        private_bytes = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
+
+        ephemeral = EphemeralKey.objects.create(
+            private_key_pem=private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            ).decode("utf-8"),
+            ttl_seconds=300
         )
-        cache.set(f"ephemeral_key_{session_id}", private_bytes, timeout=EPHEMERAL_KEY_EXPIRY)
-        
-
+        ephemeral.save()
 
         # 5. Return session ID + ephemeral public key (Base64/hex encoded)
         public_b64 = base64.b64encode(public_key).decode("utf-8")
-        logger.info("Generated ephemeral keypair. session_id=%s", session_id)
+        logger.info("Generated ephemeral keypair. session_id=%s", ephemeral.session_id)
 
         return Response({
-            "session_id": session_id,
+            "session_id": ephemeral.session_id,
             "public_key": public_b64
         })
 
@@ -311,11 +312,11 @@ class SecureGateway(APIView):
 
 
         # 1. Retrieve ephemeral private key from cache
-        private_pem = cache.get(f"ephemeral_key_{session_id}")
-        if not private_pem:
-            return _error_payload(message="Session expired or invalid", code="SESSION_INVALID", txn_id=txn_id)
+        key = EphemeralKey.objects.filter(session_id=session_id).first()
+        if not key or key.is_expired:
+            return _enc_error(None, "SESSION_EXPIRED", "Ephemeral key missing or expired", status.HTTP_401_UNAUTHORIZED, txn_id)
 
-        private_key = serialization.load_pem_private_key(private_pem, password=None)
+        private_key = serialization.load_pem_private_key(key.private_key_pem.encode(), password=None)
 
         # 2. Load client ephemeral public key
         client_ephemeral_pub_bytes = base64.b64decode(ephemeral_pubkey)
@@ -332,18 +333,11 @@ class SecureGateway(APIView):
             session_key_hash = crypto_engine.hash_data(session_key)
             logger.debug("Session key derived. txn_id=%s key_hash=%s", txn_id, session_key_hash[:16] + "...")
             audit_logs.log_event(txn_id, "session_key_derived", {"session_key_hash": session_key_hash})
-            tx_meta.update_transaction_metadata(txn_id, session_key_hash=session_key_hash)
-        except ValueError as e:
-            logger.error("Session key derivation failed. txn_id=%s error=%s", txn_id, str(e), exc_info=True)
-            audit_logs.log_event(txn_id, "key_derivation_error", {"error": str(e)})
-            return _enc_error(None, "SESSION_KEY_DERIVATION_FAILED", "Failed to derive session key", status.HTTP_422_UNPROCESSABLE_ENTITY, txn_id)
-        
 
         except Exception as e:
-            logger.error("Unexpected session key derivation error. txn_id=%s", txn_id, exc_info=True)
+            logger.exception("Session key derivation failed. txn_id=%s", txn_id)
             audit_logs.log_event(txn_id, "key_derivation_error", {"error": str(e)})
             return _enc_error(None, "SESSION_KEY_DERIVATION_FAILED", "Failed to derive session key", status.HTTP_422_UNPROCESSABLE_ENTITY, txn_id)
-
 
         # --- decrypt inner payload using session_key ---
         try:
@@ -540,11 +534,16 @@ class SecureGateway(APIView):
             audit_logs.log_event(txn_id, "request_complete", {"t_ms": round((time.perf_counter() - t0) * 1000, 2)})
             return Response(frontend_env, status=downstream_status)
         
-
-        else: #If the MIDDLEWARE is on test Mode: JUST RETURN A STATUS OF 200, ENCRYPTED WITHT THE SESSION KEY.
+        else: #If the MIDDLEWARE is on test Mode
             payload = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
-            return Response(status=200, data=payload)
+            if session_key:
+                enc_payload = crypto_engine.aes256gcm_encrypt(payload, session_key)
+                return Response(enc_payload, status=200)
+            else:
+                return Response(payload, status=200)
+            
 
+            
 def get_client_ip(request):
     """
     Extract the client IP address from request, handling proxies and multiple IPs.
