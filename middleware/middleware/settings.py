@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse, parse_qsl
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -137,6 +138,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+TEST_CRYPTO_FLOW = False   # Default: production mode
+
+
 # Internationalization
 LANGUAGE_CODE = 'en-us'
 USE_I18N = True
@@ -252,3 +256,5 @@ from cryptography.fernet import Fernet
 #Fernet key must be 32 url-safe base64-encoded bytes.
 FIELD_KEY = os.getenv('SECRET_KEY').encode('utf-8')
 FIELD_ENCRYPTION_KEY = FIELD_KEY
+
+EPHEMERAL_KEY_EXPIRY = 300  # 5 minutes

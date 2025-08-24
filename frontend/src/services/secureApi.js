@@ -101,8 +101,8 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
 
     // Step 2: Fetch server public key
     console.log('[ServerKey] Fetching server public key...');
-    const serverPublicKey = await SecureKeyManager.getServerPublicKey();
-    console.log('[ServerKey] Server public key imported:', serverPublicKey);
+    const {publicKey, session_id} = await SecureKeyManager.getServerPublicKey();
+    console.log('[ServerKey] Server public key imported:', publicKey);
 
     // Step 3: Generate ephemeral key pair for session
     console.log('[EphemeralKey] Generating ephemeral key pair...');
@@ -118,7 +118,7 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
     console.log('[Session] Deriving shared secret...');
     const sharedSecret = await SecureKeyManager.deriveSharedSecret(
         ephemeralKeyPair.privateKey,
-        serverPublicKey
+        publicKey
     );
     console.log('[Session] Shared secret derived:', sharedSecret);
 
@@ -175,7 +175,8 @@ async function performSecureRequest(target, payload, identityKeyPair, publicKeyP
         body: JSON.stringify({
             ephemeral_pubkey: ephemeralPubkey,
             ciphertext,
-            iv
+            iv,
+            session_id,
         }),
         credentials: 'same-origin'
     });

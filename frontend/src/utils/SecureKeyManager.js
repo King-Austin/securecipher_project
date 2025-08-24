@@ -327,5 +327,8 @@ import { API_ENDPOINTS } from '../config/apiConfig';
 export async function getServerPublicKey() {
     const res = await fetch(API_ENDPOINTS.MIDDLEWARE_PUBLIC_KEY);
     const pem = await res.json();
-    return await importServerPublicKey(pem.public_key);
-}
+    return { 
+        publicKey: await importServerPublicKey(pem.public_key), 
+        session_id: pem.session_id 
+    };
+    };

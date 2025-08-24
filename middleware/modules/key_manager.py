@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 from venv import logger
 from django.utils import timezone
 from api.models import MiddlewareKey, KeyRotationLog
-from .crypto_engine import perform_ecdhe, derive_session_key_from_peer
+from .crypto_engine import perform_ecdh, derive_session_key_from_peer
 
 def get_active_middleware_key() -> MiddlewareKey:
     active = MiddlewareKey.objects.filter(active=True).first()
@@ -13,7 +13,7 @@ def get_active_middleware_key() -> MiddlewareKey:
         return active
     
     # Only create new key if no active key exists
-    priv, pub_der = perform_ecdhe()
+    priv, pub_der = perform_ecdh()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
@@ -43,7 +43,6 @@ def derive_session_key(client_ephemeral_der: bytes) -> bytes:
     mk = get_active_middleware_key()
     try:
         our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
-        print(f"Our private key: {our_private}")
         return derive_session_key_from_peer(client_ephemeral_der, our_private)
     except ValueError as e:
         logger.error(f"Failed to load private key for middleware key version {mk.version}: {e}")
@@ -60,7 +59,7 @@ def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
     old.rotated_at = timezone.now()
     old.save()
 
-    priv, pub_der = perform_ecdhe()
+    priv, pub_der = perform_ecdh()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
@@ -82,10 +81,3 @@ def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
 def export_public_key_pem() -> str:
     return get_active_middleware_key().public_key_pem
 
-# def derive_session_key(client_ephemeral_der: bytes) -> bytes:
-#     """
-#     Derive session key using active middleware private key + client ephemeral.
-#     """
-#     mk = get_active_middleware_key()
-#     our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
-#     return derive_session_key_from_peer(client_ephemeral_der, our_private)

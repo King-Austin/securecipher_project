@@ -61,14 +61,14 @@ def aes256gcm_decrypt(envelope: Dict[str, str], key: bytes) -> Dict[str, Any]:
     return json.loads(decrypted.decode())
 
 # ECDHE and HKDF
-def perform_ecdhe() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
+def perform_ecdh() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
     priv = ec.generate_private_key(ECDH_CURVE)
     pub = priv.public_key()
     pub_der = pub.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
     return priv, pub_der
 
 
-def derive_session_key_from_peer(client_ephemeral_der: bytes, our_private_key) -> bytes:
+def derive_session_key_from_peer(client_ephemeral_der: bytes, ephemeral_private_key) -> bytes:
     """
     Derive session key using consistent HKDF parameters with frontend.
     Frontend sends DER-format public keys, not PEM.
@@ -77,11 +77,11 @@ def derive_session_key_from_peer(client_ephemeral_der: bytes, our_private_key) -
     client_public_key = serialization.load_der_public_key(client_ephemeral_der)
     
     # Verify we have a private key for exchange
-    if not hasattr(our_private_key, 'exchange'):
+    if not hasattr(ephemeral_private_key, 'exchange'):
         raise ValueError("Expected a private key for ECDH exchange, got public key")
-    
-    shared_secret = our_private_key.exchange(ec.ECDH(), client_public_key)
-    
+
+    shared_secret = ephemeral_private_key.exchange(ec.ECDH(), client_public_key)   # THE ECDHE
+
     # Use HKDF with same parameters as frontend
     hkdf = HKDF(
         algorithm=hashes.SHA384(),
@@ -96,7 +96,7 @@ def derive_session_key_from_peer(client_ephemeral_der: bytes, our_private_key) -
 
 
 def create_downstream_envelope(payload: Dict[str, Any], bank_public_key_pem: str):
-    ephemeral_priv, ephemeral_pub_der = perform_ecdhe()
+    ephemeral_priv, ephemeral_pub_der = perform_ecdh()
     
     # Bank's public key is in PEM, convert to DER for consistency
     bank_pub_pem = serialization.load_pem_public_key(bank_public_key_pem.encode())

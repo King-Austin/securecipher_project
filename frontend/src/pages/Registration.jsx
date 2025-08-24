@@ -26,23 +26,13 @@ export default function Registration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [warningMessage, setWarningMessage] = useState('');
 
-  const navigate = useNavigate();
   const firstErrorRef = useRef(null);
 
   // Autofocus first field of each step
   const stepFieldRefs = [useRef(), useRef(), useRef()];
 
-  useEffect(() => {
-    // Check local storage for the account variable
-    const existingAccount = localStorage.getItem('userProfile');
-    if (existingAccount) {
-        setWarningMessage(
-            'This device already has an attached account. Registering may override existing credentials. kindly login.'
-        );
-    }
-}, []);
+
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -361,11 +351,7 @@ export default function Registration() {
             </div>
           )}
 
-          {warningMessage && (
-            <div className="mt-4 p-3 bg-yellow-50 rounded text-yellow-700 text-sm border border-yellow-200">
-              <strong>Warning:</strong> {warningMessage}
-            </div>
-          )}
+
 
           <div className="flex justify-between items-center pt-6">
             {currentStep > 0 ? (
