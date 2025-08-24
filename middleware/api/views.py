@@ -315,7 +315,7 @@ class SecureGateway(APIView):
         # 1. Retrieve ephemeral private key from cache
         private_pem = cache.get(f"ephemeral_key_{session_id}")
         if not private_pem:
-            return _enc_error({"error": "Session expired or invalid"}, status=400)
+            return _error_payload(message="Session expired or invalid", code="SESSION_INVALID", txn_id=txn_id)
 
         private_key = serialization.load_pem_private_key(private_pem, password=None)
 
