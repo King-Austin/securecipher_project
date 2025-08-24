@@ -32,7 +32,7 @@ TEST_MODE = False   # Default: production mode
 
 
 ALLOWED_HOSTS = [
-    '*'
+    "*"
     ]
 
 # Application definition
@@ -43,7 +43,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'corsheaders',
+
     'rest_framework',
     'encrypted_model_fields',
     'api',
@@ -206,6 +208,8 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# SECURE_SSL_REDIRECT = False
 
 #use the default django auth model
 AUTH_USER_MODEL = 'auth.User'

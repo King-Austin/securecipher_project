@@ -23,7 +23,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from cryptography.exceptions import InvalidSignature, InvalidTag
+from cryptography.exceptions import  InvalidTag
 
 # DB models & serializers (unchanged)
 from .models import (
@@ -46,7 +46,7 @@ from .serializers import (
 from modules import crypto_engine
 from modules import key_manager
 from modules import downstream_handler
-from modules import transaction_metadata as tx_meta
+from modules.audit_logs import TransactionHandler as tx_meta
 from modules import audit_logs
 
 logger = logging.getLogger("middleware_app")
@@ -555,6 +555,6 @@ def get_client_ip(request):
         ips = [ip.strip() for ip in x_forwarded_for.split(',')]
         # Return the first (original client) IP
         return ips[0] if ips else 'unknown'
-    
+ 
     # Fall back to REMOTE_ADDR
     return request.META.get('REMOTE_ADDR', 'unknown')
