@@ -108,7 +108,7 @@ DATABASES = {
     }
 }
 
-# Use the Sqlite database
+# Use the Sqlicccote database
 
 # DATABASES = {
 #     'default': {

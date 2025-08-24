@@ -138,7 +138,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-TEST_CRYPTO_FLOW = False   # Default: production mode
+TEST_MODE = True   # Default: production mode
 
 
 # Internationalization

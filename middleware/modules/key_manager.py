@@ -7,6 +7,16 @@ from django.utils import timezone
 from api.models import MiddlewareKey, KeyRotationLog
 from .crypto_engine import perform_ecdh, derive_session_key_from_peer
 
+
+def normalize_pem(pem_str: str) -> str:
+    """
+    Remove any trailing whitespace and normalize line endings.
+    Ensures PEM works with Postgres/Cloud DBs.
+    """
+    return "\n".join(line.strip() for line in pem_str.strip().splitlines())
+
+
+
 def get_active_middleware_key() -> MiddlewareKey:
     active = MiddlewareKey.objects.filter(active=True).first()
     if active:
@@ -24,7 +34,11 @@ def get_active_middleware_key() -> MiddlewareKey:
         serialization.PublicFormat.SubjectPublicKeyInfo
     ).decode()
 
+    priv_pem = normalize_pem(priv_pem)
+    pub_pem = normalize_pem(pub_pem)
     # Get next version number
+
+
     latest_version = MiddlewareKey.objects.aggregate(Max('version'))['version__max'] or 0
     new_version = latest_version + 1
 
@@ -69,6 +83,9 @@ def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
         serialization.Encoding.PEM,
         serialization.PublicFormat.SubjectPublicKeyInfo
     ).decode()
+
+    priv_pem = normalize_pem(priv_pem)
+    pub_pem = normalize_pem(pub_pem)
 
     new_version = (old.version or 1) + 1
     new = MiddlewareKey.objects.create(

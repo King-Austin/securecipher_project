@@ -168,6 +168,7 @@ def get_public_key(request):
     Generate and return an ephemeral public key for ECDH key exchange.
     Store the ephemeral private key in cache with session_id for later lookup.
     """
+
     try:
         # 1. Generate ephemeral key pair
         private_key, public_key = crypto_engine.perform_ecdh()
@@ -259,7 +260,7 @@ class SecureGateway(APIView):
 
         txn_id = str(uuid.uuid4())
         t0 = time.perf_counter()
-        client_ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "unknown"))
+        client_ip = get_client_ip(request)
 
         session_key = None
         downstream_status = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -420,116 +421,139 @@ class SecureGateway(APIView):
             audit_logs.log_event(txn_id, "client_sig_verify_error", {"error": str(e)})
             return _enc_error(session_key, "SIGNATURE_VERIFY_ERROR", "Signature verification error", status.HTTP_400_BAD_REQUEST, txn_id)
 
-        # --- sign payload for downstream with middleware signing key (ECDSA) ---
-        try:
+        if getattr(settings, "TEST_MODE", False):
 
-            # Get the active middleware key
-            mk = key_manager.get_active_middleware_key()
-            if not mk:
-                logger.error("No active middleware key found. txn_id=%s", txn_id)
-                audit_logs.log_event(txn_id, "no_active_middleware_key")
-                return _enc_error(session_key, "NO_ACTIVE_MW_KEY", "No active middleware key", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
-          
+            # --- sign payload for downstream with middleware signing key (ECDSA) ---
+            try:
 
-            fwd = {
-                "transaction_data": tx_data,
-                "client_signature": client_sig,
-                "client_public_key": client_pub,
-                "nonce": nonce,
-            }
+                # Get the active middleware key
+                mk = key_manager.get_active_middleware_key()
+                if not mk:
+                    logger.error("No active middleware key found. txn_id=%s", txn_id)
+                    audit_logs.log_event(txn_id, "no_active_middleware_key")
+                    return _enc_error(session_key, "NO_ACTIVE_MW_KEY", "No active middleware key", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+            
 
-            # Sign the forwarded data with the middleware key
-            mw_sig = crypto_engine.ecdsa_sign(fwd, mk.private_key_pem)
-            fwd["middleware_signature"] = mw_sig
-            fwd["middleware_public_key"] = mk.public_key_pem
-            tx_meta.update_transaction_metadata(txn_id, middleware_signature=mw_sig)
-            audit_logs.log_event(txn_id, "middleware_signed", {"signature_len": len(mw_sig)})
-            logger.info("Middleware signed payload. txn_id=%s sig_len=%s", txn_id, len(mw_sig))
-        except Exception as e:
-            logger.exception("Middleware signing failed. txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "middleware_sign_error", {"error": str(e)})
-            return _enc_error(session_key, "MW_SIGN_ERROR", "Middleware signing failed", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+                fwd = {
+                    "transaction_data": tx_data,
+                    "client_signature": client_sig,
+                    "client_public_key": client_pub,
+                    "nonce": nonce,
+                }
 
-        # --- route & downstream call (wrapped) ---
-        try:
-            target = inner_payload.get("target")
-            if not target:
-                logger.warning("Missing target. txn_id=%s", txn_id)
-                return _enc_error(session_key, "MISSING_TARGET", "Missing target", status.HTTP_400_BAD_REQUEST, txn_id)
+                # Sign the forwarded data with the middleware key
+                mw_sig = crypto_engine.ecdsa_sign(fwd, mk.private_key_pem)
+                fwd["middleware_signature"] = mw_sig
+                fwd["middleware_public_key"] = mk.public_key_pem
+                tx_meta.update_transaction_metadata(txn_id, middleware_signature=mw_sig)
+                audit_logs.log_event(txn_id, "middleware_signed", {"signature_len": len(mw_sig)})
+                logger.info("Middleware signed payload. txn_id=%s sig_len=%s", txn_id, len(mw_sig))
+            except Exception as e:
+                logger.exception("Middleware signing failed. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "middleware_sign_error", {"error": str(e)})
+                return _enc_error(session_key, "MW_SIGN_ERROR", "Middleware signing failed", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
 
-            target_url = TARGET_URLS.get(target)
-            if not target_url:
-                logger.warning("Unknown target. txn_id=%s target=%s", txn_id, target)
-                audit_logs.log_event(txn_id, "unknown_target", {"target": target})
-                return _enc_error(session_key, "UNKNOWN_TARGET", "Unknown target", status.HTTP_400_BAD_REQUEST, txn_id)
+            # --- route & downstream call (wrapped) ---
+            try:
+                target = inner_payload.get("target")
+                if not target:
+                    logger.warning("Missing target. txn_id=%s", txn_id)
+                    return _enc_error(session_key, "MISSING_TARGET", "Missing target", status.HTTP_400_BAD_REQUEST, txn_id)
 
-            logger.info("Forwarding downstream. txn_id=%s target=%s url=%s", txn_id, target, target_url)
-            audit_logs.log_event(txn_id, "forwarding_to_downstream", {"target": target, "target_url": target_url})
+                target_url = TARGET_URLS.get(target)
+                if not target_url:
+                    logger.warning("Unknown target. txn_id=%s target=%s", txn_id, target)
+                    audit_logs.log_event(txn_id, "unknown_target", {"target": target})
+                    return _enc_error(session_key, "UNKNOWN_TARGET", "Unknown target", status.HTTP_400_BAD_REQUEST, txn_id)
 
-            # downstream_handler.encrypt_and_send_to_bank should be test-friendly (you can monkeypatch in tests)
-            resp_data, downstream_status, downstream_sess = downstream_handler.encrypt_and_send_to_bank(fwd, target)
-            logger.info("Downstream response received. txn_id=%s status=%s", txn_id, downstream_status)
-            audit_logs.log_event(txn_id, "downstream_response_received", {"status_code": downstream_status})
-        except Exception as e:
-            logger.exception("Downstream service error. txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "downstream_error", {"error": str(e)})
-            return _enc_error(session_key, "DOWNSTREAM_ERROR", "Downstream service error", status.HTTP_502_BAD_GATEWAY, txn_id)
+                logger.info("Forwarding downstream. txn_id=%s target=%s url=%s", txn_id, target, target_url)
+                audit_logs.log_event(txn_id, "forwarding_to_downstream", {"target": target, "target_url": target_url})
 
-        # --- process downstream response and verify server signature if present ---
-        try:
-            business = downstream_handler.handle_response_from_bank(resp_data, downstream_sess)
-            logger.debug("Downstream response processed. txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "downstream_processed")
+                # downstream_handler.encrypt_and_send_to_bank should be test-friendly (you can monkeypatch in tests)
+                resp_data, downstream_status, downstream_session_key = downstream_handler.encrypt_and_send_to_bank(fwd, target)
+                logger.info("Downstream response received. txn_id=%s status=%s", txn_id, downstream_status)
+                audit_logs.log_event(txn_id, "downstream_response_received", {"status_code": downstream_status})
+            except Exception as e:
+                logger.exception("Downstream service error. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "downstream_error", {"error": str(e)})
+                return _enc_error(session_key, "DOWNSTREAM_ERROR", "Downstream service error", status.HTTP_502_BAD_GATEWAY, txn_id)
 
-            if isinstance(business, dict) and "signature" in business and "server_pubkey" in business:
-                try:
-                    verified = crypto_engine.ecdsa_verify(business.get("payload", {}), business["signature"], business["server_pubkey"])
-                    logger.info("Server signature check. txn_id=%s verified=%s", txn_id, bool(verified))
-                    audit_logs.log_event(txn_id, "server_signature_verified", {"verified": bool(verified)})
-                except Exception:
-                    logger.exception("Server signature verification failed. txn_id=%s", txn_id)
-                    audit_logs.log_event(txn_id, "server_signature_verification_failed", {"error": "server_signature_verification_failed"})
-        except Exception as e:
-            logger.exception("Downstream processing error. txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "downstream_processing_error", {"error": str(e)})
-            return _enc_error(session_key, "MALFORMED_DOWNSTREAM", "Malformed downstream response", status.HTTP_502_BAD_GATEWAY, txn_id)
+            # --- process downstream response and verify server signature if present ---
+            try:
+                business = downstream_handler.handle_response_from_bank(resp_data, downstream_session_key)
+                logger.debug("Downstream response processed. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "downstream_processed")
 
-        # --- encrypt response for client (only if session_key exists) ---
-        try:
-            payload_for_client = business.get("payload", business) if isinstance(business, dict) else business
+                if isinstance(business, dict) and "signature" in business and "server_pubkey" in business:
+                    try:
+                        verified = crypto_engine.ecdsa_verify(business.get("payload", {}), business["signature"], business["server_pubkey"])
+                        logger.info("Server signature check. txn_id=%s verified=%s", txn_id, bool(verified))
+                        audit_logs.log_event(txn_id, "server_signature_verified", {"verified": bool(verified)})
+                    except Exception:
+                        logger.exception("Server signature verification failed. txn_id=%s", txn_id)
+                        audit_logs.log_event(txn_id, "server_signature_verification_failed", {"error": "server_signature_verification_failed"})
+            except Exception as e:
+                logger.exception("Downstream processing error. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "downstream_processing_error", {"error": str(e)})
+                return _enc_error(session_key, "MALFORMED_DOWNSTREAM", "Malformed downstream response", status.HTTP_502_BAD_GATEWAY, txn_id)
 
-            if session_key:
-                t_enc0 = time.perf_counter()
-                frontend_env = crypto_engine.aes256gcm_encrypt(payload_for_client, session_key)
-                enc_ms = (time.perf_counter() - t_enc0) * 1000
-                logger.debug("Response encrypted for client. txn_id=%s t_ms=%.2f", txn_id, enc_ms)
-                audit_logs.log_event(txn_id, "response_encrypted_for_client", {"t_ms": round(enc_ms, 2)})
-            else:
-                # No session key -> return plaintext (as requested)
+            # --- encrypt response for client (only if session_key exists) ---
+            try:
+                payload_for_client = business.get("payload", business) if isinstance(business, dict) else business
+
+                if session_key:
+                    t_enc0 = time.perf_counter()
+                    frontend_env = crypto_engine.aes256gcm_encrypt(payload_for_client, session_key)
+                    enc_ms = (time.perf_counter() - t_enc0) * 1000
+                    logger.debug("Response encrypted for client. txn_id=%s t_ms=%.2f", txn_id, enc_ms)
+                    audit_logs.log_event(txn_id, "response_encrypted_for_client", {"t_ms": round(enc_ms, 2)})
+                else:
+                    # No session key -> return plaintext (as requested)
+                    frontend_env = payload_for_client
+                    logger.debug("No session key available; returning plaintext response. txn_id=%s", txn_id)
+            except Exception as e:
+                logger.exception("Encrypting response for client failed. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "encrypt_response_error", {"error": str(e)})
+                # Try fallback: plaintext response (we do not leak private key, only plaintext payload)
                 frontend_env = payload_for_client
-                logger.debug("No session key available; returning plaintext response. txn_id=%s", txn_id)
-        except Exception as e:
-            logger.exception("Encrypting response for client failed. txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "encrypt_response_error", {"error": str(e)})
-            # Try fallback: plaintext response (we do not leak private key, only plaintext payload)
-            frontend_env = payload_for_client
-            return _enc_error(None, "RESPONSE_ENCRYPT_FAIL", "Failed to encrypt response; returning plaintext", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+                return _enc_error(None, "RESPONSE_ENCRYPT_FAIL", "Failed to encrypt response; returning plaintext", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
 
-        # --- final TransactionMetadata batch update ---
-        try:
-            total_ms = (time.perf_counter() - t0) * 1000
-            tx_meta.update_transaction_metadata(
-                txn_id,
-                status_code=int(downstream_status),
-                encryption_time_ms=enc_ms,
-                processing_time_ms=total_ms,
-                response_size_bytes=len(json.dumps(frontend_env)),
-                banking_route=target,
-            )
-            logger.info("Transaction complete. txn_id=%s total_ms=%.2f status=%s", txn_id, total_ms, downstream_status)
-        except Exception as e:
-            logger.exception("Metadata update warning (non-fatal). txn_id=%s", txn_id)
-            audit_logs.log_event(txn_id, "metadata_update_warning", {"error": str(e)})
+            # --- final TransactionMetadata batch update ---
+            try:
+                total_ms = (time.perf_counter() - t0) * 1000
+                tx_meta.update_transaction_metadata(
+                    txn_id,
+                    status_code=int(downstream_status),
+                    encryption_time_ms=enc_ms,
+                    processing_time_ms=total_ms,
+                    response_size_bytes=len(json.dumps(frontend_env)),
+                    banking_route=target,
+                )
+                logger.info("Transaction complete. txn_id=%s total_ms=%.2f status=%s", txn_id, total_ms, downstream_status)
+            except Exception as e:
+                logger.exception("Metadata update warning (non-fatal). txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "metadata_update_warning", {"error": str(e)})
 
-        audit_logs.log_event(txn_id, "request_complete", {"t_ms": round((time.perf_counter() - t0) * 1000, 2)})
-        return Response(frontend_env, status=downstream_status)
+            audit_logs.log_event(txn_id, "request_complete", {"t_ms": round((time.perf_counter() - t0) * 1000, 2)})
+            return Response(frontend_env, status=downstream_status)
+        
+
+        else: #If the MIDDLEWARE is on test Mode: JUST RETURN A STATUS OF 200, ENCRYPTED WITHT THE SESSION KEY.
+            payload = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
+            return Response(status=200, data=payload)
+
+def get_client_ip(request):
+    """
+    Extract the client IP address from request, handling proxies and multiple IPs.
+    Returns a single IP address string or 'unknown' if not available.
+    """
+    # Try X-Forwarded-For first (common in proxy setups)
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        # X-Forwarded-For can contain multiple IPs: client, proxy1, proxy2
+        ips = [ip.strip() for ip in x_forwarded_for.split(',')]
+        # Return the first (original client) IP
+        return ips[0] if ips else 'unknown'
+    
+    # Fall back to REMOTE_ADDR
+    return request.META.get('REMOTE_ADDR', 'unknown')
