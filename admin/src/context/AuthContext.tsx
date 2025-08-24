@@ -6,11 +6,11 @@ interface User {
   email: string;
 }
 
-/*
-Uncomment this for local development
-const MIDDLEWARE_URL = 'http://localhost:8000'; 
-const SERVER_URL = "http://localhost:8001"; 
-*/
+
+// // Uncomment this for local development
+// const MIDDLEWARE_URL = 'http://localhost:8000'; 
+// const SERVER_URL = "http://localhost:8001"; 
+
 
 const MIDDLEWARE_URL = "https://securecipher-middleware.onrender.com";
 const SERVER_URL = "https://securecipher-server.onrender.com";
@@ -121,9 +121,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchAllData();
 
     // Set up polling for real-time updates
-    const interval = setInterval(fetchDashboard, 5000);
+    const interval = setInterval(fetchAllData, 5000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, fetchDashboard, fetchBankingDashboard]);
+  }, [isAuthenticated]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     setLoading(true);

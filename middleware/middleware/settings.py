@@ -25,6 +25,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+LOCAL_DEV = False
+TEST_MODE = False   # Default: production mode
+
 
 
 
@@ -97,29 +100,39 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Replace the DATABASES section of your settings.py with this
 
+if LOCAL_DEV:
+        
+        
+
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+                }
+            }
+        BANKING_API_BASE_URL = 'http://localhost:8001'  # Use localhost for development
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
-        'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
-        'OPTIONS': {
-            'sslmode': os.getenv('DB_SSLMODE', 'require'),
-        },
-    }
-}
+else:
+        
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.getenv('DB_NAME'),
+                'USER': os.getenv('DB_USER'),
+                'PASSWORD': os.getenv('DB_PASSWORD'),
+                'HOST': os.getenv('DB_HOST'),
+                'PORT': os.getenv('DB_PORT'),
+                'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+                'OPTIONS': {
+                    'sslmode': os.getenv('DB_SSLMODE', 'require'),
+                },
+            }
+        }
+
+        BANKING_API_BASE_URL = 'https://securecipher-server.onrender.com' #uncomment this for production
+
 
 
 # Password validation
@@ -138,7 +151,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-TEST_MODE = True   # Default: production mode
 
 
 # Internationalization
@@ -164,6 +176,12 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",  # dev
+        "LOCATION": "ephemeral-sessions",
+    }
+}
 
 
 
@@ -228,9 +246,6 @@ LOGGING = {
 }
 
 
-# Base URL for banking API - change this for different environments
-BANKING_API_BASE_URL = 'https://securecipher-server.onrender.com' #uncomment this for production
-# BANKING_API_BASE_URL = 'http://localhost:8001'  # Use localhost for development
 
 # API Endpoints
 ROUTING_TABLE = {

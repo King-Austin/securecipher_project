@@ -165,7 +165,7 @@ def index_view(request):
 
 
 @api_view(["GET"])
-def get_public_key(request):
+def get_ephemeral_pub_key(request):
     """
     Generate and return an ephemeral public key for ECDH key exchange.
     Store the ephemeral private key in cache with session_id for later lookup.
@@ -175,20 +175,18 @@ def get_public_key(request):
         # 1. Generate ephemeral key pair
         private_key, public_key = crypto_engine.perform_ecdh()
 
-
-
-        # 3. Create session ID
+        # 2. Create session ID
         session_id = str(uuid.uuid4())
 
-        cache.set(
-            f"ephemeral_key_{session_id}",
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ),
-            timeout=300  # 5 minutes
-)
+        # 3. Cache private key (PEM)
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        cache.set(f"ephemeral_key_{session_id}", private_bytes, timeout=EPHEMERAL_KEY_EXPIRY)
+        
+
 
         # 5. Return session ID + ephemeral public key (Base64/hex encoded)
         public_b64 = base64.b64encode(public_key).decode("utf-8")
@@ -423,8 +421,11 @@ class SecureGateway(APIView):
             audit_logs.log_event(txn_id, "client_sig_verify_error", {"error": str(e)})
             return _enc_error(session_key, "SIGNATURE_VERIFY_ERROR", "Signature verification error", status.HTTP_400_BAD_REQUEST, txn_id)
 
-        if getattr(settings, "TEST_MODE", False):
+        
+        test_mode = getattr(settings, "TEST_MODE", False)
+        logger.debug(f"TEST_MODE value: {test_mode}")
 
+        if not test_mode:
             # --- sign payload for downstream with middleware signing key (ECDSA) ---
             try:
 
