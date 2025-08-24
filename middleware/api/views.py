@@ -14,7 +14,6 @@ from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.core.cache import cache
 from django.db.models import Avg  
-from models import EphemeralKey
 
 
 
@@ -543,7 +542,7 @@ class SecureGateway(APIView):
                 return Response(payload, status=200)
             
 
-            
+
 def get_client_ip(request):
     """
     Extract the client IP address from request, handling proxies and multiple IPs.
