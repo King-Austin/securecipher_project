@@ -273,6 +273,7 @@ export default function SendMoney() {
 
   if (success) {
     return (
+      
       <div className="max-w-lg mx-auto p-8 bg-white shadow-lg rounded-lg text-center">
         <Check className="mx-auto h-16 w-16 text-green-500 bg-green-100 rounded-full p-2" />
         <h2 className="mt-4 text-2xl font-bold text-gray-800">Transfer Successful!</h2>
@@ -331,6 +332,7 @@ export default function SendMoney() {
           <p className="text-xs mt-1">Confirm & Send</p>
         </div>
       </div>
+      
 
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -481,10 +483,14 @@ export default function SendMoney() {
               >
                 {loading ? <Loader className="animate-spin h-5 w-5" /> : 'Confirm'}
               </button>
+
+
             </div>
-          </div>
+          </div>         
         )}
       </form>
     </div>
+
+    
   );
 }

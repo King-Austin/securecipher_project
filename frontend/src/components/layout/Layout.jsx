@@ -158,6 +158,12 @@ export default function Layout({ children }) {
             <div className="px-4 mx-auto max-w-7xl sm:px-6 md:px-8">
               {children}
             </div>
+
+                      <p className="text-center text-sm text-muted-foreground">
+                        <span className="font-medium text-green-600 hover:text-green-500 transition-colors">
+                          PhD Dissertation Software by OKECHI ONYEDIMEKWU
+                        </span>
+                      </p>
           </div>
         </main>
       </div>

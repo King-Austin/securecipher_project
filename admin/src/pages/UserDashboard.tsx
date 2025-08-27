@@ -79,16 +79,23 @@ const UserDashboard: React.FC = () => {
     <div className="p-6 space-y-8">
       {/* === Global Stats === */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(data?.stats || {}).map(([key, value]) => (
-          <Card key={key} className="shadow-md">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground capitalize">
-                {key.replace(/_/g, " ")}
-              </p>
-              <p className="text-lg font-bold">{value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {Object.entries(data?.stats || {}).map(([key, value]) => {
+          // Format total_balance with ₦ symbol
+          const displayValue = key === 'total_balance' 
+            ? `₦ ${Number(value).toLocaleString()}` 
+            : value;
+          
+          return (
+            <Card key={key} className="shadow-md">
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground capitalize">
+                  {key.replace(/_/g, " ")}
+                </p>
+                <p className="text-lg text-sky-700 font-bold">{displayValue}</p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* === User Profiles === */}

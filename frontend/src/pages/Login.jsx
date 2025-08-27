@@ -135,6 +135,12 @@ export default function Login() {
                     Sign Up
                   </Link>
                 </p>
+          <p className="text-center text-sm text-muted-foreground">
+            <span className="font-medium mt-11 text-green-600 hover:text-green-500 transition-colors">
+              PhD Dissertation Software by OKECHI ONYEDIMEKWU
+            </span>
+          </p>          
+          
             </>
           )}
         </div>

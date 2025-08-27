@@ -9,9 +9,10 @@ export const Header = () => {
     <header className="border-b bg-card px-4 py-3 md:px-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Left Section: Title */}
-        <h1 className="text-lg md:text-xl flex items-center font-bold text-blue-800">
-          SECURECIPHER
+        <h1 className="text-sm flex items-center font-bold text-blue-800">
+          SECURECIPHER : <span className="text-blue-600"> A Unified Cryptography Model</span>
         </h1>
+        <p className="text-xs text-gray-600">PhD Dissertation Software by Okechi Onyedimekwu, 2025 </p>
 
         {/* Right Section: Actions */}
         <div className="flex  justify-end gap-4">

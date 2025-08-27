@@ -11,11 +11,11 @@ const Index = () => {
             <Shield className="h-16 w-16 text-primary" />
           </div>
         </div>
-        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-          SecureCipher
+        <h1 className="text-xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          SecureCipher: <span> A Unified Cryptography Model</span>
         </h1>
         <p className="text-xl text-muted-foreground mb-8">
-          Advanced cryptographic security platform with comprehensive transaction monitoring and key management.
+          PhD Dissertation Software by Okechi Onyedimekwu, 2025.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <Link to="/dashboard">

@@ -168,34 +168,16 @@ def index_view(request):
 @api_view(["GET"])
 def get_ephemeral_pub_key(request):
     """
-    Generate and return an ephemeral public key for ECDH key exchange.
-    Store the ephemeral private key in cache with session_id for later lookup.
+    API: Generate and return ephemeral public key + session_id
     """
-
     try:
-        # 1. Generate ephemeral key pair
-        private_key, public_key = crypto_engine.perform_ecdh()
-
-
-
-        ephemeral = EphemeralKey.objects.create(
-            private_key_pem=private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ).decode("utf-8"),
-            ttl_seconds=300
-        )
-        ephemeral.save()
-
-        # 5. Return session ID + ephemeral public key (Base64/hex encoded)
-        public_b64 = base64.b64encode(public_key).decode("utf-8")
-        logger.info("Generated ephemeral keypair. session_id=%s", ephemeral.session_id)
-
+        ephemeral_pub_key, session_id = key_manager.create_ephemeral_key(ttl_seconds=300)
         return Response({
-            "session_id": ephemeral.session_id,
-            "public_key": public_b64
+            "session_id": session_id,
+            "public_key": ephemeral_pub_key
         })
+    
+
 
     except Exception as e:
         logger.error("Failed to generate ephemeral key: %s", str(e), exc_info=True)
@@ -311,11 +293,12 @@ class SecureGateway(APIView):
 
 
         # 1. Retrieve ephemeral private key from cache
-        key = EphemeralKey.objects.filter(session_id=session_id).first()
-        if not key or key.is_expired:
-            return _enc_error(None, "SESSION_EXPIRED", "Ephemeral key missing or expired", status.HTTP_401_UNAUTHORIZED, txn_id)
+        ephemeral_private_key = key_manager.fetch_ephemeral_private_key(session_id=session_id)
+        if ephemeral_private_key is None: 
+            #probably None or Expired
+            return _enc_error(None, "SESSION_EXPIRED", "Ephemeral key invalid or expired", status.HTTP_401_UNAUTHORIZED, txn_id)
 
-        private_key = serialization.load_pem_private_key(key.private_key_pem.encode(), password=None)
+        logger.debug("Ephemeral private key loaded. txn_id=%s", txn_id)
 
         # 2. Load client ephemeral public key
         client_ephemeral_pub_bytes = base64.b64decode(ephemeral_pubkey)
@@ -328,7 +311,7 @@ class SecureGateway(APIView):
                 encoding=serialization.Encoding.DER,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
-            session_key = crypto_engine.derive_session_key_from_peer(client_public_key_der, private_key)
+            session_key = crypto_engine.derive_session_key_from_peer(client_public_key_der, ephemeral_private_key)
             session_key_hash = crypto_engine.hash_data(session_key)
             logger.debug("Session key derived. txn_id=%s key_hash=%s", txn_id, session_key_hash[:16] + "...")
             audit_logs.log_event(txn_id, "session_key_derived", {"session_key_hash": session_key_hash})
@@ -418,38 +401,40 @@ class SecureGateway(APIView):
         test_mode = getattr(settings, "TEST_MODE", False)
         logger.debug(f"TEST_MODE value: {test_mode}")
 
-        if not test_mode:
             # --- sign payload for downstream with middleware signing key (ECDSA) ---
-            try:
+        try:
 
-                # Get the active middleware key
-                mk = key_manager.get_active_middleware_key()
-                if not mk:
-                    logger.error("No active middleware key found. txn_id=%s", txn_id)
-                    audit_logs.log_event(txn_id, "no_active_middleware_key")
-                    return _enc_error(session_key, "NO_ACTIVE_MW_KEY", "No active middleware key", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
-            
+            # Get the active middleware key
+            mk = key_manager.get_active_middleware_key()
+            if not mk:
+                logger.error("No active middleware key found. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "no_active_middleware_key")
+                return _enc_error(session_key, "NO_ACTIVE_MW_KEY", "No active middleware key", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+        
 
-                fwd = {
-                    "transaction_data": tx_data,
-                    "client_signature": client_sig,
-                    "client_public_key": client_pub,
-                    "nonce": nonce,
-                }
+            fwd = {
+                "transaction_data": tx_data,
+                "client_signature": client_sig,
+                "client_public_key": client_pub,
+                "nonce": nonce,
+            }
 
-                # Sign the forwarded data with the middleware key
-                mw_sig = crypto_engine.ecdsa_sign(fwd, mk.private_key_pem)
-                fwd["middleware_signature"] = mw_sig
-                fwd["middleware_public_key"] = mk.public_key_pem
-                tx_meta.update_transaction_metadata(txn_id, middleware_signature=mw_sig)
-                audit_logs.log_event(txn_id, "middleware_signed", {"signature_len": len(mw_sig)})
-                logger.info("Middleware signed payload. txn_id=%s sig_len=%s", txn_id, len(mw_sig))
-            except Exception as e:
-                logger.exception("Middleware signing failed. txn_id=%s", txn_id)
-                audit_logs.log_event(txn_id, "middleware_sign_error", {"error": str(e)})
-                return _enc_error(session_key, "MW_SIGN_ERROR", "Middleware signing failed", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+            # Sign the forwarded data with the middleware key
+            print (mk.private_key_pem)
+            mw_sig = crypto_engine.ecdsa_sign(fwd, mk.private_key_pem)
+            fwd["middleware_signature"] = mw_sig
+            fwd["middleware_public_key"] = mk.public_key_pem
+            tx_meta.update_transaction_metadata(txn_id, middleware_signature=mw_sig)
+            audit_logs.log_event(txn_id, "middleware_signed", {"signature_len": len(mw_sig)})
+            logger.info("Middleware signed payload. txn_id=%s sig_length=%s", txn_id, len(mw_sig))
+        except Exception as e:
+            logger.exception("Middleware signing failed. txn_id=%s", txn_id)
+            audit_logs.log_event(txn_id, "middleware_sign_error", {"error": str(e)})
+            return _enc_error(session_key, "MW_SIGN_ERROR", "Middleware signing failed", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
 
             # --- route & downstream call (wrapped) ---
+        if not test_mode:
+
             try:
                 target = inner_payload.get("target")
                 if not target:

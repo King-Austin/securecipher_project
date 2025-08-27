@@ -35,6 +35,7 @@ def generate_ephemeral_key():
     )
     return priv, pub_der
 
+
 def derive_session_key(peer_pub_der, priv_key):
     peer_pub = serialization.load_der_public_key(peer_pub_der)
     shared_key = priv_key.exchange(ec.ECDH(), peer_pub)

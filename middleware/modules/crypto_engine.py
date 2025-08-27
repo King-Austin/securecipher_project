@@ -21,12 +21,73 @@ def hash_data(data: bytes) -> str:
     import hashlib
     return hashlib.sha256(data if isinstance(data, bytes) else (data.encode() if isinstance(data, str) else json.dumps(data).encode())).hexdigest()
 
-# ECDSA
-def ecdsa_sign(payload: Dict[str, Any], private_key_pem: str) -> str:
-    private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+def _load_private_key(maybe_key: Any, password: Optional[bytes] = None):
+    """
+    Robust loader for private keys. Accepts:
+      - PEM str (with headers)
+      - base64-encoded DER str (no headers)
+      - bytes (DER or PEM)
+      - already-loaded private key object
+
+    Returns a private key object usable for .sign(...)
+    """
+    # Already a private key object
+    if hasattr(maybe_key, "sign"):
+        return maybe_key
+
+    # bytes? try PEM first, then DER
+    try:
+        if isinstance(maybe_key, bytes):
+            data = maybe_key
+        elif isinstance(maybe_key, str):
+            # strip surrounding whitespace
+            s = maybe_key.strip()
+
+            if s.startswith("-----BEGIN"):
+                data = s.encode()
+            else:
+                # assume base64-encoded DER
+                try:
+                    data = base64.b64decode(s)
+                except Exception:
+                    # fallback: treat as raw bytes of the string
+                    data = s.encode()
+        else:
+            raise TypeError("Unsupported key type: %s" % type(maybe_key))
+
+        # First try PEM loader (works if bytes contain PEM text)
+        try:
+            return serialization.load_pem_private_key(data, password=password)
+        except ValueError:
+            # Could be DER -> try DER loader
+            try:
+                return serialization.load_der_private_key(data, password=password)
+            except ValueError:
+                # Give a clearer error
+                raise ValueError("Key data not valid PEM or DER private key")
+    except Exception as exc:
+        print ("Failed to load private key: %s", exc)
+        raise
+
+
+def ecdsa_sign(payload: Dict[str, Any], private_key_pem: Any) -> str:
+    """
+    Sign a payload with ECDSA (SHA-384).
+    Accepts the private key in multiple formats (see _load_private_key).
+    Returns base64-encoded ASN.1 signature.
+    """
+    try:
+        private_key = _load_private_key(private_key_pem, password=None)
+    except Exception as exc:
+        print ("ecdsa_sign: could not load private key: %s", exc)
+        raise
+
+    # canonical JSON for signing (same approach used in verification)
     message = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
-    sig = private_key.sign(message, ec.ECDSA(hashes.SHA384()))
-    return base64.b64encode(sig).decode()
+
+    # sign (DER encoded signature)
+    sig_der = private_key.sign(message, ec.ECDSA(hashes.SHA384()))
+    return base64.b64encode(sig_der).decode()
 
 def ecdsa_verify(payload: Dict[str, Any], signature_b64: str, public_key_str: str) -> bool:
     try:
@@ -121,5 +182,47 @@ def validate_timestamp(timestamp, window_seconds=30):
     import time
     now = int(time.time())
     return abs(now - timestamp) <= window_seconds
+
+if __name__ == "__main__":
+    # Simple self-test
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+
+    # Generate keypair
+    priv = ec.generate_private_key(ECDH_CURVE)
+    pub = priv.public_key()
+    priv_pem = priv.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode()
+    pub_pem = pub.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode()
+
+    print("Private Key PEM:\n", priv_pem)
+    print("Public Key PEM:\n", pub_pem)
+
+    # Sign and verify
+    payload = {"msg": "hello", "n": 42}
+    sig = ecdsa_sign(payload, priv_pem)
+    print("Signature (base64):", sig)
+    assert ecdsa_verify(payload, sig, pub_pem)
+    print("Signature verified successfully")
+
+    # AES-GCM encrypt/decrypt
+    key = os.urandom(32)
+    envelope = aes256gcm_encrypt(payload, key)
+    print("Encrypted envelope:", envelope)
+    recovered = aes256gcm_decrypt(envelope, key)
+    print("Decrypted payload:", recovered)
+    assert recovered == payload
+    print("AES-GCM encryption/decryption successful")
+
+    # ECDH and session key derivation
+    ephemeral_priv, ephemeral_pub_der = perform_ecdh()
+    session_key = derive_session_key_from_peer(ephemeral_pub_der, ephemeral_priv)
+    print("Derived session key (hex):", session_key.hex())
 
     

@@ -1,6 +1,6 @@
 # admin.py
 from django.contrib import admin
-from .models import MiddlewareKey, KeyRotationLog, UsedNonce, TransactionMetadata, AuditLog
+from .models import EphemeralKey, MiddlewareKey, KeyRotationLog, UsedNonce, TransactionMetadata, AuditLog
 
 @admin.register(MiddlewareKey)
 class MiddlewareKeyAdmin(admin.ModelAdmin):
@@ -10,6 +10,10 @@ class MiddlewareKeyAdmin(admin.ModelAdmin):
 @admin.register(KeyRotationLog)
 class KeyRotationLogAdmin(admin.ModelAdmin):
     list_display = ("old_key", "new_key", "rotated_at", "reason")
+
+@admin.register(EphemeralKey)
+class EphemeralKeyAdmin(admin.ModelAdmin):
+    list_display = ("session_id", "private_key_pem", "created_at")
 
 @admin.register(UsedNonce)
 class UsedNonceAdmin(admin.ModelAdmin):

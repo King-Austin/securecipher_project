@@ -26,7 +26,7 @@ class MiddlewareKey(models.Model):
     def __str__(self):
         return f"{self.label} v{self.version} (active={self.active})"
 
-
+#Table in the 
 class KeyRotationLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     old_key = models.ForeignKey(MiddlewareKey, null=True, blank=True, on_delete=models.SET_NULL, related_name="old_key_logs")
@@ -108,9 +108,10 @@ class AuditLog(models.Model):
     def __str__(self):
         return f"{self.transaction_id} | {self.event_type} @ {self.timestamp.isoformat()}"
 
+
 class EphemeralKey(models.Model):
     session_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    private_key_pem = models.TextField()
+    private_key_pem = EncryptedTextField(verbose_name="Ephemeral Private Key")
     created_at = models.DateTimeField(auto_now_add=True)
     ttl_seconds = models.IntegerField(default=300)  # 5 minutes
 

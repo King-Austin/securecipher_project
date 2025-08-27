@@ -1,11 +1,15 @@
 # key_manager.py
+import base64
 from typing import Tuple
 from django.db.models import Max
 from cryptography.hazmat.primitives import serialization
+from cryptography.fernet import Fernet
 from venv import logger
 from django.utils import timezone
-from api.models import MiddlewareKey, KeyRotationLog
-from .crypto_engine import perform_ecdh, derive_session_key_from_peer
+from django.conf import settings
+from api.models import MiddlewareKey, KeyRotationLog, EphemeralKey
+from .crypto_engine import perform_ecdh
+import uuid
 
 
 def normalize_pem(pem_str: str) -> str:
@@ -17,54 +21,45 @@ def normalize_pem(pem_str: str) -> str:
 
 
 
+
 def get_active_middleware_key() -> MiddlewareKey:
+    """
+    Fetch the active key. If none exists, create a new one.
+    Private key is decrypted on access (single source of truth).
+    """
     active = MiddlewareKey.objects.filter(active=True).first()
     if active:
+
         return active
-    
+
     # Only create new key if no active key exists
     priv, pub_der = perform_ecdh()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption()
-    ).decode()
+    ).decode('utf-8')
     pub_pem = serialization.load_der_public_key(pub_der).public_bytes(
         serialization.Encoding.PEM,
         serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    ).decode('utf-8')
 
     priv_pem = normalize_pem(priv_pem)
     pub_pem = normalize_pem(pub_pem)
-    # Get next version number
 
 
     latest_version = MiddlewareKey.objects.aggregate(Max('version'))['version__max'] or 0
     new_version = latest_version + 1
 
     return MiddlewareKey.objects.create(
-        label="active", 
-        private_key_pem=priv_pem, 
+        label="auto-generated",
+        private_key_pem=priv_pem, #Encryption is handled on the db level
         public_key_pem=pub_pem,
-        version=new_version, 
+        version=new_version,
         active=True
     )
 
-def derive_session_key(client_ephemeral_der: bytes) -> bytes:
-    """
-    Derive session key using active middleware private key + client ephemeral.
-    """
-    mk = get_active_middleware_key()
-    try:
-        our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
-        return derive_session_key_from_peer(client_ephemeral_der, our_private)
-    except ValueError as e:
-        logger.error(f"Failed to load private key for middleware key version {mk.version}: {e}")
-        # Rotate the key and try again
-        rotate_middleware_key("corrupted_private_key_auto_rotation")
-        mk = get_active_middleware_key()
-        our_private = serialization.load_pem_private_key(mk.private_key_pem.encode(), password=None)
-        return derive_session_key_from_peer(client_ephemeral_der, our_private)
+
 
 
 def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
@@ -87,14 +82,66 @@ def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
     priv_pem = normalize_pem(priv_pem)
     pub_pem = normalize_pem(pub_pem)
 
+
     new_version = (old.version or 1) + 1
     new = MiddlewareKey.objects.create(
-        label="active", private_key_pem=priv_pem, public_key_pem=pub_pem,
-        version=new_version, active=True
+        label="active",
+        private_key_pem=priv_pem,
+        public_key_pem=pub_pem,
+        version=new_version,
+        active=True
     )
     KeyRotationLog.objects.create(old_key=old, new_key=new, reason=reason)
     return new
 
+
 def export_public_key_pem() -> str:
     return get_active_middleware_key().public_key_pem
 
+def fetch_ephemeral_private_key(session_id: str):
+    """
+    Fetch the ephemeral private key by session_id.
+    Automatically decrypts and returns the private_key object.
+    """
+    try:
+        ephemeral = EphemeralKey.objects.get(session_id=session_id)
+    except EphemeralKey.DoesNotExist:
+        return None
+
+    # Check expiration
+    if ephemeral.is_expired:
+        ephemeral.delete()
+        return None
+
+    # The EncryptedTextField automatically decrypts on access
+    private_pem = ephemeral.private_key_pem.encode("utf-8")
+
+    # Load PEM into private_key object
+    private_key = serialization.load_pem_private_key(private_pem, password=None)
+    return private_key
+
+def create_ephemeral_key(ttl_seconds: int = 300) -> tuple[str, str]:
+    """
+    Generate ephemeral ECDH key pair and store encrypted private key in DB.
+    Returns (public_key_b64, session_id).
+    """
+    # Generate pair
+    private_key, public_key_der = perform_ecdh()
+
+    # Serialize private key into PEM (for storage)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    # Store encrypted in DB
+    ephemeral = EphemeralKey.objects.create(
+        private_key_pem=private_pem,
+        ttl_seconds=ttl_seconds
+    )
+
+    # Encode public key in base64 for JSON transport
+    public_b64 = base64.b64encode(public_key_der).decode("ascii")
+
+    return public_b64, str(ephemeral.session_id)

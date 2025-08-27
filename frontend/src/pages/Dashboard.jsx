@@ -104,6 +104,7 @@ export default function Dashboard() {
         </div>
 
       </div>
+  
 
       {/* PIN Modal for refresh */}
       <PinModal
@@ -113,5 +114,6 @@ export default function Dashboard() {
         isLoading={isRefreshing}
       />
     </div>
+    
   );
 }
