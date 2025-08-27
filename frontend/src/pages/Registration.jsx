@@ -400,7 +400,13 @@ export default function Registration() {
           <Link to="/login" className="font-medium text-green-600 hover:text-green-500">
             Sign In
           </Link>
+            <p className="text-center text-sm text-muted-foreground">
+              <span className="font-medium text-green-600 hover:text-green-500 transition-colors">
+                PhD Dissertation Software by OKECHI ONYEDIMEKWU
+              </span>
+            </p>
         </p>
+
       </div>
     </div>
   );
@@ -563,5 +569,6 @@ function InputField({
         </p>
       )}
     </div>
+    
   );
 }

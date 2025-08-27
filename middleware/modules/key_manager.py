@@ -8,7 +8,7 @@ from venv import logger
 from django.utils import timezone
 from django.conf import settings
 from api.models import MiddlewareKey, KeyRotationLog, EphemeralKey
-from .crypto_engine import perform_ecdh
+from .crypto_engine import generate_ec_keypair
 import uuid
 
 
@@ -33,7 +33,7 @@ def get_active_middleware_key() -> MiddlewareKey:
         return active
 
     # Only create new key if no active key exists
-    priv, pub_der = perform_ecdh()
+    priv, pub_der = generate_ec_keypair()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
@@ -68,7 +68,7 @@ def rotate_middleware_key(reason: str = None) -> MiddlewareKey:
     old.rotated_at = timezone.now()
     old.save()
 
-    priv, pub_der = perform_ecdh()
+    priv, pub_der = generate_ec_keypair()
     priv_pem = priv.private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
@@ -126,7 +126,7 @@ def create_ephemeral_key(ttl_seconds: int = 300) -> tuple[str, str]:
     Returns (public_key_b64, session_id).
     """
     # Generate pair
-    private_key, public_key_der = perform_ecdh()
+    private_key, public_key_der = generate_ec_keypair()
 
     # Serialize private key into PEM (for storage)
     private_pem = private_key.private_bytes(

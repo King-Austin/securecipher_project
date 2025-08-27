@@ -120,9 +120,9 @@ def aes256gcm_decrypt(envelope: Dict[str, str], key: bytes) -> Dict[str, Any]:
     ciphertext = base64.b64decode(envelope["ciphertext"])
     decrypted = aesgcm.decrypt(iv, ciphertext, None)
     return json.loads(decrypted.decode())
-
+ 
 # ECDHE and HKDF
-def perform_ecdh() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
+def generate_ec_keypair() -> Tuple[ec.EllipticCurvePrivateKey, bytes]:
     priv = ec.generate_private_key(ECDH_CURVE)
     pub = priv.public_key()
     pub_der = pub.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
@@ -157,8 +157,8 @@ def derive_session_key_from_peer(client_ephemeral_der: bytes, ephemeral_private_
 
 
 def create_downstream_envelope(payload: Dict[str, Any], bank_public_key_pem: str):
-    ephemeral_priv, ephemeral_pub_der = perform_ecdh()
-    
+    ephemeral_priv, ephemeral_pub_der = generate_ec_keypair()
+
     # Bank's public key is in PEM, convert to DER for consistency
     bank_pub_pem = serialization.load_pem_public_key(bank_public_key_pem.encode())
     bank_pub_der = bank_pub_pem.public_bytes(
@@ -182,47 +182,3 @@ def validate_timestamp(timestamp, window_seconds=30):
     import time
     now = int(time.time())
     return abs(now - timestamp) <= window_seconds
-
-if __name__ == "__main__":
-    # Simple self-test
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives import serialization
-
-    # Generate keypair
-    priv = ec.generate_private_key(ECDH_CURVE)
-    pub = priv.public_key()
-    priv_pem = priv.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ).decode()
-    pub_pem = pub.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
-
-    print("Private Key PEM:\n", priv_pem)
-    print("Public Key PEM:\n", pub_pem)
-
-    # Sign and verify
-    payload = {"msg": "hello", "n": 42}
-    sig = ecdsa_sign(payload, priv_pem)
-    print("Signature (base64):", sig)
-    assert ecdsa_verify(payload, sig, pub_pem)
-    print("Signature verified successfully")
-
-    # AES-GCM encrypt/decrypt
-    key = os.urandom(32)
-    envelope = aes256gcm_encrypt(payload, key)
-    print("Encrypted envelope:", envelope)
-    recovered = aes256gcm_decrypt(envelope, key)
-    print("Decrypted payload:", recovered)
-    assert recovered == payload
-    print("AES-GCM encryption/decryption successful")
-
-    # ECDH and session key derivation
-    ephemeral_priv, ephemeral_pub_der = perform_ecdh()
-    session_key = derive_session_key_from_peer(ephemeral_pub_der, ephemeral_priv)
-    print("Derived session key (hex):", session_key.hex())
-
-    

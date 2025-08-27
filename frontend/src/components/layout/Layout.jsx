@@ -44,7 +44,7 @@ export default function Layout({ children }) {
       <div className="hidden md:flex md:flex-shrink-0">
         <div className="flex flex-col w-64 bg-white border-r">
           <div className="flex items-center justify-center h-16 px-4 border-b">
-            <h1 className="text-xl font-bold text-green-600">Secure Cipher Bank</h1>
+            <h1 className="text-xl font-bold text-green-600">SecureCipher</h1>
           </div>
           <div className="flex flex-col flex-1 overflow-y-auto">
             <nav className="flex-1 px-2 py-4 space-y-1">

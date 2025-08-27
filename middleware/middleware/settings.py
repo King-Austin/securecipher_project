@@ -24,7 +24,7 @@ load_dotenv()
 SECRET_KEY = os.getenv('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+DEBUG = True #os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 LOCAL_DEV = False
 TEST_MODE = False   # Default: production mode
 
