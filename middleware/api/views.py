@@ -377,16 +377,16 @@ class SecureGateway(APIView):
                 return _enc_error(session_key, "MISSING_SIG_FIELDS", "Missing transaction/signature/public key", status.HTTP_400_BAD_REQUEST, txn_id)
 
             try:
-                v = crypto_engine.ecdsa_verify({"transaction_data": tx_data}, client_sig, client_pub)
+                is_client_signature_verified = crypto_engine.ecdsa_verify({"transaction_data": tx_data}, client_sig, client_pub)
             except Exception as e:
                 logger.exception("Client signature verification error. txn_id=%s", txn_id)
                 audit_logs.log_event(txn_id, "SIGNATURE_VERIFY_FAIL", {"error": str(e)})
                 return _enc_error(session_key, "SIGNATURE_VERIFY_FAIL", "Signature verification error", status.HTTP_400_BAD_REQUEST, txn_id)
 
-            tx_meta.update_transaction_metadata(txn_id, client_signature_verified=bool(v))
-            audit_logs.log_event(txn_id, "client_signature_verified", {"valid": bool(v)})
+            tx_meta.update_transaction_metadata(txn_id, client_signature_verified=bool(is_client_signature_verified))
+            audit_logs.log_event(txn_id, "client_signature_verified", {"valid": bool(is_client_signature_verified)})
 
-            if not v:
+            if not is_client_signature_verified:
                 logger.warning("Client signature verification failed. txn_id=%s", txn_id)
                 return _enc_error(session_key, "INVALID_SIGNATURE", "Client signature verification failed", status.HTTP_401_UNAUTHORIZED, txn_id)
 
@@ -518,12 +518,6 @@ class SecureGateway(APIView):
             return Response(frontend_env, status=downstream_status)
         
         else: #If the MIDDLEWARE is on test Mode
-            # payload = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
-            # if session_key:
-            #     enc_payload = crypto_engine.aes256gcm_encrypt(payload, session_key)
-            #     return Response(enc_payload, status=200)
-            # else:
-            #     return Response(payload, status=200)
 
             try:
                 status_code = status.HTTP_200_OK

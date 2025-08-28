@@ -108,14 +108,19 @@ def ecdsa_verify(payload: Dict[str, Any], signature_b64: str, public_key_str: st
 
 # AES-GCM
 def aes256gcm_encrypt(payload: Dict[str, Any], key: bytes) -> Dict[str, str]:
+    # First initialise the AESGCM
     aesgcm = AESGCM(key)
+
     iv = os.urandom(AES_GCM_IV_SIZE)
     payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     ciphertext = aesgcm.encrypt(iv, payload_json.encode(), None)
     return {"iv": base64.b64encode(iv).decode(), "ciphertext": base64.b64encode(ciphertext).decode()}
 
 def aes256gcm_decrypt(envelope: Dict[str, str], key: bytes) -> Dict[str, Any]:
+    # First initialise the AESGCM
     aesgcm = AESGCM(key)
+
+    # The IV or Nonce which is auto generated on every run
     iv = base64.b64decode(envelope["iv"])
     ciphertext = base64.b64decode(envelope["ciphertext"])
     decrypted = aesgcm.decrypt(iv, ciphertext, None)
