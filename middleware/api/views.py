@@ -27,7 +27,6 @@ from cryptography.exceptions import  InvalidTag
 
 # DB models & serializers (unchanged)
 from .models import (
-    EphemeralKey,
     MiddlewareKey,
     KeyRotationLog,
     UsedNonce,
@@ -381,8 +380,8 @@ class SecureGateway(APIView):
                 v = crypto_engine.ecdsa_verify({"transaction_data": tx_data}, client_sig, client_pub)
             except Exception as e:
                 logger.exception("Client signature verification error. txn_id=%s", txn_id)
-                audit_logs.log_event(txn_id, "client_sig_verify_error", {"error": str(e)})
-                return _enc_error(session_key, "SIGNATURE_VERIFY_ERROR", "Signature verification error", status.HTTP_400_BAD_REQUEST, txn_id)
+                audit_logs.log_event(txn_id, "SIGNATURE_VERIFY_FAIL", {"error": str(e)})
+                return _enc_error(session_key, "SIGNATURE_VERIFY_FAIL", "Signature verification error", status.HTTP_400_BAD_REQUEST, txn_id)
 
             tx_meta.update_transaction_metadata(txn_id, client_signature_verified=bool(v))
             audit_logs.log_event(txn_id, "client_signature_verified", {"valid": bool(v)})
@@ -433,24 +432,24 @@ class SecureGateway(APIView):
             return _enc_error(session_key, "MW_SIGN_ERROR", "Middleware signing failed", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
 
             # --- route & downstream call (wrapped) ---
+
+        target = inner_payload.get("target")
+        if not target:
+            logger.warning("Missing target. txn_id=%s", txn_id)
+            return _enc_error(session_key, "MISSING_TARGET", "Missing target", status.HTTP_400_BAD_REQUEST, txn_id)
+
+        target_url = TARGET_URLS.get(target)
+        if not target_url:
+            logger.warning("Unknown target. txn_id=%s target=%s", txn_id, target)
+            audit_logs.log_event(txn_id, "unknown_target", {"target": target})
+            return _enc_error(session_key, "UNKNOWN_TARGET", "Unknown target", status.HTTP_400_BAD_REQUEST, txn_id)
+
+        logger.info("Forwarding downstream. txn_id=%s target=%s url=%s", txn_id, target, target_url)
+        audit_logs.log_event(txn_id, "forwarding_to_downstream", {"target": target, "target_url": target_url})
+
         if not test_mode:
-
             try:
-                target = inner_payload.get("target")
-                if not target:
-                    logger.warning("Missing target. txn_id=%s", txn_id)
-                    return _enc_error(session_key, "MISSING_TARGET", "Missing target", status.HTTP_400_BAD_REQUEST, txn_id)
-
-                target_url = TARGET_URLS.get(target)
-                if not target_url:
-                    logger.warning("Unknown target. txn_id=%s target=%s", txn_id, target)
-                    audit_logs.log_event(txn_id, "unknown_target", {"target": target})
-                    return _enc_error(session_key, "UNKNOWN_TARGET", "Unknown target", status.HTTP_400_BAD_REQUEST, txn_id)
-
-                logger.info("Forwarding downstream. txn_id=%s target=%s url=%s", txn_id, target, target_url)
-                audit_logs.log_event(txn_id, "forwarding_to_downstream", {"target": target, "target_url": target_url})
-
-                # downstream_handler.encrypt_and_send_to_bank should be test-friendly (you can monkeypatch in tests)
+                # downstream_handler.encrypt_and_send_to_bank should be test-friendly
                 resp_data, downstream_status, downstream_session_key = downstream_handler.encrypt_and_send_to_bank(fwd, target)
                 logger.info("Downstream response received. txn_id=%s status=%s", txn_id, downstream_status)
                 audit_logs.log_event(txn_id, "downstream_response_received", {"status_code": downstream_status})
@@ -519,12 +518,53 @@ class SecureGateway(APIView):
             return Response(frontend_env, status=downstream_status)
         
         else: #If the MIDDLEWARE is on test Mode
-            payload = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
-            if session_key:
-                enc_payload = crypto_engine.aes256gcm_encrypt(payload, session_key)
-                return Response(enc_payload, status=200)
-            else:
-                return Response(payload, status=200)
+            # payload = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
+            # if session_key:
+            #     enc_payload = crypto_engine.aes256gcm_encrypt(payload, session_key)
+            #     return Response(enc_payload, status=200)
+            # else:
+            #     return Response(payload, status=200)
+
+            try:
+                status_code = status.HTTP_200_OK
+                business = {"message": "The Request has proven legitimate upto the point of the session key derivation"}
+                payload_for_client = business.get("payload", business) if isinstance(business, dict) else business
+
+                if session_key:
+                    t_enc0 = time.perf_counter()
+                    frontend_env = crypto_engine.aes256gcm_encrypt(payload_for_client, session_key)
+                    enc_ms = (time.perf_counter() - t_enc0) * 1000
+                    logger.debug("Response encrypted for client. txn_id=%s t_ms=%.2f", txn_id, enc_ms)
+                    audit_logs.log_event(txn_id, "response_encrypted_for_client", {"t_ms": round(enc_ms, 2)})
+                else:
+                    # No session key -> return plaintext (as requested)
+                    frontend_env = payload_for_client
+                    logger.debug("No session key available; returning plaintext response. txn_id=%s", txn_id)
+            except Exception as e:
+                logger.exception("Encrypting response for client failed. txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "encrypt_response_error", {"error": str(e)})
+                # Try fallback: plaintext response (we do not leak private key, only plaintext payload)
+                frontend_env = payload_for_client
+                return _enc_error(None, "RESPONSE_ENCRYPT_FAIL", "Failed to encrypt response; returning plaintext", status.HTTP_500_INTERNAL_SERVER_ERROR, txn_id)
+
+            # --- final TransactionMetadata batch update ---
+            try:
+                total_ms = (time.perf_counter() - t0) * 1000
+                tx_meta.update_transaction_metadata(
+                    txn_id,
+                    status_code=status_code,
+                    encryption_time_ms=enc_ms,
+                    processing_time_ms=total_ms,
+                    response_size_bytes=len(json.dumps(frontend_env)),
+                    banking_route=target,
+                )
+                logger.info("Transaction complete. txn_id=%s total_ms=%.2f status=%s", txn_id, total_ms, status_code)
+            except Exception as e:
+                logger.exception("Metadata update warning (non-fatal). txn_id=%s", txn_id)
+                audit_logs.log_event(txn_id, "metadata_update_warning", {"error": str(e)})
+
+            audit_logs.log_event(txn_id, "request_complete", {"t_ms": round((time.perf_counter() - t0) * 1000, 2)})
+            return Response(frontend_env, status=status_code)
             
 
 

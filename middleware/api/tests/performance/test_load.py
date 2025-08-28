@@ -1,37 +1,36 @@
-# load_test.py
-import time
-import statistics
+# tests/system/test_load.py
 import multiprocessing as mp
-from test_middleware_gateway import run_transaction
+import statistics
+from tabulate import tabulate
+import pytest
+import time
+
+from .test_middleware_gateway import run_transaction
 
 
+# ---------- Worker ---------- #
 def worker_task(n: int, results_queue: mp.Queue):
     latencies = []
     errors = 0
-    for i in range(n):
+    for _ in range(n):
         try:
-            response, elapsed, decrypted = run_transaction()
-
-
-            # Debug first few results per worker
-            if i < 2:
-                print(f"[DEBUG] Worker got {response.status_code}, body={response.text[:100]}")
-
+            response, elapsed, _ = run_transaction(verbose=False)
             if response.status_code == 200:
                 latencies.append(elapsed)
             else:
                 errors += 1
-        except Exception as e:
+        except Exception:
             errors += 1
-            print(f"[ERROR] Exception in worker: {e}")
-
     results_queue.put((latencies, errors))
 
 
-def run_load(total_requests: int = 5, concurrency: int = 4):
+# ---------- Load Test Runner ---------- #
+def run_load(total_requests: int = 10, concurrency: int = 4):
     requests_per_worker = max(1, total_requests // concurrency)
     results_queue = mp.Queue()
     processes = []
+
+    start_time = time.perf_counter()
 
     for _ in range(concurrency):
         p = mp.Process(target=worker_task, args=(requests_per_worker, results_queue))
@@ -41,7 +40,10 @@ def run_load(total_requests: int = 5, concurrency: int = 4):
     for p in processes:
         p.join()
 
-    # Gather results
+    end_time = time.perf_counter()
+    wall_time = end_time - start_time
+
+    # Collect results
     all_latencies = []
     total_errors = 0
     while not results_queue.empty():
@@ -53,18 +55,36 @@ def run_load(total_requests: int = 5, concurrency: int = 4):
         print("⚠️ No successful transactions")
         return
 
-    # Stats
+    # Metrics
     avg_latency = statistics.mean(all_latencies)
-    p95 = statistics.quantiles(all_latencies, n=100)[94] if len(all_latencies) >= 100 else max(all_latencies)
-    throughput = len(all_latencies) / sum(all_latencies)  # req/sec approx
+    p95_latency = statistics.quantiles(all_latencies, n=100)[94] if len(all_latencies) >= 100 else max(all_latencies)
+    throughput = len(all_latencies) / wall_time
 
-    print(f"Total Requests: {len(all_latencies) + total_errors}")
-    print(f"Successes: {len(all_latencies)}")
-    print(f"Errors: {total_errors}")
-    print(f"Average latency: {avg_latency:.4f}s")
-    print(f"95th percentile latency: {p95:.4f}s")
-    print(f"Throughput: {throughput:.2f} req/s")
+    # Concise tabular output
+    table = [[
+        concurrency,
+        total_requests,
+        len(all_latencies),
+        total_errors,
+        round(avg_latency, 4),
+        round(p95_latency, 4),
+        round(throughput, 2)
+    ]]
+    headers = [
+        "Concurrency", "Total Requests", "Successes", "Errors",
+        "Avg Latency (s)", "p95 Latency (s)", "Throughput Txn/s"
+    ]
+    print("\n" + tabulate(table, headers=headers, tablefmt="grid"))
 
 
+# ---------- Pytest Wrappers ---------- #
+@pytest.mark.parametrize("total_requests, concurrency", [
+    (1, 1),
+])
+def test_load(total_requests, concurrency):
+    run_load(total_requests=total_requests, concurrency=concurrency)
+
+
+# ---------- Optional Manual Run ---------- #
 if __name__ == "__main__":
-    run_load(total_requests=1, concurrency=1)
+    run_load(total_requests=200, concurrency=10)

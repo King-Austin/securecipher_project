@@ -25,8 +25,8 @@ class User(AbstractUser):
         ('SUSPENDED', 'Suspended'),
         ('CLOSED', 'Closed'),
     ]
-    account_number = models.CharField(max_length=20, unique=True, editable=False)
-    balance = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    account_number = models.CharField(max_length=10, unique=True, editable=False)
+    balance = models.DecimalField(max_digits=11, decimal_places=2, default=0.00)
     account_type = models.CharField(max_length=50, default='Savings')
     status = models.CharField(max_length=10, choices=ACCOUNT_STATUS_CHOICES, default='ACTIVE')
     is_primary = models.BooleanField(default=True)

@@ -12,7 +12,7 @@ class MiddlewareKey(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=64, default="active", db_index=True)
-    private_key_pem = EncryptedTextField(verbose_name="Private Key")
+    private_key_pem = models.TextField(verbose_name="Private Key", max_length=5000)
     public_key_pem = models.TextField(help_text="PEM encoded public key")
     version = models.PositiveIntegerField(default=1)
     active = models.BooleanField(default=True)
@@ -111,7 +111,7 @@ class AuditLog(models.Model):
 
 class EphemeralKey(models.Model):
     session_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    private_key_pem = EncryptedTextField(verbose_name="Ephemeral Private Key")
+    private_key_pem = models.TextField(verbose_name="Ephemeral Private Key")
     created_at = models.DateTimeField(auto_now_add=True)
     ttl_seconds = models.IntegerField(default=300)  # 5 minutes
 

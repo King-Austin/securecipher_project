@@ -177,7 +177,7 @@ def create_downstream_envelope(payload: Dict[str, Any], bank_public_key_pem: str
 
     
 
-def validate_timestamp(timestamp, window_seconds=30):
+def validate_timestamp(timestamp, window_seconds=60):
     # Example: check if timestamp is within allowed 30 
     import time
     now = int(time.time())
