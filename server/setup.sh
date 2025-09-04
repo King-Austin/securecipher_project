@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Setup SecureCipher Bankinapi on Render
+# Setup SecureCipher Bankingapi on Render
 
 # Exit immediately on error
 set -e
@@ -14,13 +14,5 @@ python manage.py migrate
 # Collect static files
 python manage.py collectstatic --noinput
 
-# Create superuser if not exists
-python manage.py shell -c "
-from django.contrib.auth import get_user_model;
-User = get_user_model();
-User.objects.filter(username='admin').exists() or User.objects.create_superuser(
-    'admin', 'admin@admin.com', 'securecipher'
-)
-"
-
-
+# Create superuser using our custom management command
+python manage.py create_superuser

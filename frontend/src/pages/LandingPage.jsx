@@ -23,7 +23,7 @@ export default function Onboarding() {
       {/* Hero / Intro Section */}
       <main className="flex flex-1 flex-col items-center justify-center text-center px-6">
         <h2 className="text-4xl md:text-5xl font-bold mb-4">
-          Securecipher: <span className="text-indigo-400"> A Unified Cryptographic Model
+          SecureCipher: <span className="text-indigo-400"> A Unified Cryptographic Model
 </span>
         </h2>
         <p className="max-w-xl text-lg text-gray-300 mb-8">

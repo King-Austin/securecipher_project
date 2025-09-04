@@ -5,7 +5,7 @@ This removes dependency on python-decouple and external services.
 
 import os
 from pathlib import Path
-from urllib.parse import urlparse, parse_qsl
+from urllib.parse import 
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -108,10 +108,19 @@ if LOCAL_DEV:
 
         DATABASES = {
             'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-                }
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.getenv('LOCAL_DB_NAME'),
+                'USER': os.getenv('LOCAL_DB_USER'),
+                'PASSWORD': os.getenv('LOCAL_DB_PASSWORD'),
+                'HOST': os.getenv('LOCAL_DB_HOST'),
+                'PORT': os.getenv('LOCAL_DB_PORT'),
+                'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+                'OPTIONS': {
+                    'sslmode': os.getenv('LOCAL_DB_SSLMODE', 'require'),
+                },
             }
+        }
+
         BANKING_API_BASE_URL = 'http://localhost:8001'  # Use localhost for development
 
 
@@ -187,12 +196,6 @@ CACHES = {
 
 
 
-# Banking App Specific Settings
-TRANSACTION_DAILY_LIMIT = 50000.00
-MINIMUM_BALANCE = 100.00
-ACCOUNT_NUMBER_LENGTH = 10
-DEMO_ACCOUNT_BALANCE = 50000.00
-DEFAULT_CURRENCY = 'NGN'
 
 # CORS Settings for React Frontend - Very permissive for development
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development!
@@ -241,7 +244,7 @@ LOGGING = {
             "level": "WARNING",  # suppress SQL unless it errors
             "propagate": False,
         },
-        "middleware_app": {  # <--- your custom app/module
+        "middleware_app": {  
             "handlers": ["console"],
             "level": "DEBUG",  # keep detailed logs for your code
             "propagate": False,

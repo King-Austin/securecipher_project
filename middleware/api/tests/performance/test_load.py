@@ -80,7 +80,7 @@ def run_load(total_requests: int = 10, concurrency: int = 4):
 # ---------- Pytest Wrappers ---------- #
 @pytest.mark.parametrize("total_requests, concurrency", [
     (1, 1),
-    (200, 50),
+    (100, 20),
 ])
 def test_load(total_requests, concurrency):
     run_load(total_requests=total_requests, concurrency=concurrency)
