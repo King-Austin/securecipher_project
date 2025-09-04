@@ -93,6 +93,6 @@ echo ✅ Setup completed! Starting development server...
 echo ========================================================
 
 REM Start the development server on port 8001 (different from middleware)
-python manage.py runserver 0.0.0.0:8001
+python manage.py runserver 8001
 
 endlocal
