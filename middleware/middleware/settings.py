@@ -5,7 +5,6 @@ This removes dependency on python-decouple and external services.
 
 import os
 from pathlib import Path
-from urllib.parse import 
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
