@@ -13,7 +13,7 @@ interface User {
 
 
 const MIDDLEWARE_URL = "https://middleware.securecipher.app";
-const SERVER_URL = "https://bankingapi.securecipher.app";
+const SERVER_URL = "https://securecipher-server.onrender.com";
 
 interface AuthContextType {
   user: User | null;
