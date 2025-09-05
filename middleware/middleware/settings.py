@@ -113,7 +113,7 @@ if LOCAL_DEV:
                 'PASSWORD': os.getenv('LOCAL_DB_PASSWORD'),
                 'HOST': os.getenv('LOCAL_DB_HOST'),
                 'PORT': os.getenv('LOCAL_DB_PORT'),
-                'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
+                'CONN_MAX_AGE': 0,  
                 'OPTIONS': {
                     'sslmode': os.getenv('LOCAL_DB_SSLMODE', 'require'),
                 },
