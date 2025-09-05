@@ -11,11 +11,14 @@ __pycache__/
 migrations/
 build/
 develop-eggs/
+.env
+env/
 dist/
 downloads/
 migrations/
 eggs/
 .eggs/
+server/.env
 lib/
 lib60/
 parts/
