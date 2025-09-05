@@ -141,7 +141,7 @@ else:
             }
         }
 
-        BANKING_API_BASE_URL = 'https://securecipher-server.onrender.com' #uncomment this for production
+        BANKING_API_BASE_URL = 'https://bankingapi.securecipher.app' #uncomment this for production
 
 
 
