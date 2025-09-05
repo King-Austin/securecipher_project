@@ -11,14 +11,13 @@ __pycache__/
 migrations/
 build/
 develop-eggs/
-.env
-env/
+
 dist/
 downloads/
 migrations/
 eggs/
 .eggs/
-server/.env
+server/
 lib/
 lib60/
 parts/
@@ -105,7 +104,7 @@ celerybeat.pid
 
 # Environments
 .venv
-env/
+
 venv/
 ENV/
 env.bak/
