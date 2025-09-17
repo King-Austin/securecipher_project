@@ -96,7 +96,7 @@ WSGI_APPLICATION = 'bankingapi.wsgi.application'
 # DATABASE CONFIGURATION
 # =============================================================================
 
-LOCAL_DEV = True
+LOCAL_DEV = False
 
 if LOCAL_DEV:
     DATABASES = {

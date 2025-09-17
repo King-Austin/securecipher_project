@@ -32,8 +32,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', '')
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 # Environment flags
-LOCAL_DEV = True
-TEST_MODE = True  # Default: production mode
+LOCAL_DEV = False
+TEST_MODE = False  # Default: production mode
 
 # Host configuration
 ALLOWED_HOSTS = ["*"]
