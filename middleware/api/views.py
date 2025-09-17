@@ -291,7 +291,7 @@ class SecureGateway(APIView):
         ciphertext_b64 = env.get("ciphertext")
 
 
-        # 1. Retrieve ephemeral private key from cache
+        # 1. Retrieve ephemeral private key from the data in the cache table
         ephemeral_private_key = key_manager.fetch_ephemeral_private_key(session_id=session_id)
         if ephemeral_private_key is None: 
             #probably None or Expired

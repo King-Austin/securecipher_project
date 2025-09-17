@@ -1,23 +1,30 @@
 """
-Simplified Django settings for development.
-This removes dependency on python-decouple and external services.
+Django settings for SecureCipher Banking API project.
+Organized for readability and maintainability.
 """
+
+# =============================================================================
+# IMPORTS
+# =============================================================================
 
 import os
 from pathlib import Path
-from urllib.parse import urlparse, parse_qsl
+from cryptography.fernet import Fernet
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# =============================================================================
+# BASIC SETUP
+# =============================================================================
+
+# Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-import os
-from dotenv import load_dotenv
-
 # Load environment variables
+from dotenv import load_dotenv
 load_dotenv()
 
-
+# =============================================================================
+# SECURITY SETTINGS
+# =============================================================================
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', '')
@@ -25,34 +32,45 @@ SECRET_KEY = os.getenv('SECRET_KEY', '')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [
-    '*'
-    ]
+# Host configuration
+ALLOWED_HOSTS = ['*']
 
-# Application definition
+# =============================================================================
+# APPLICATION DEFINITION
+# =============================================================================
+
 INSTALLED_APPS = [
+    # Django core apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party apps
     'corsheaders',
     'rest_framework',
     'encrypted_model_fields',
+
+    # Local apps
     'core',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',   
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
 ]
+
+# =============================================================================
+# URL AND TEMPLATES CONFIGURATION
+# =============================================================================
 
 ROOT_URLCONF = 'bankingapi.urls'
 
@@ -74,41 +92,47 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'bankingapi.wsgi.application'
 
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
 
-# The absolute path to the directory where collectstatic will collect static files for deployment.
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+LOCAL_DEV = True
 
-# Additional locations of static files
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
+if LOCAL_DEV:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('LOCAL_DB_NAME'),
+            'USER': os.getenv('LOCAL_DB_USER'),
+            'PASSWORD': os.getenv('LOCAL_DB_PASSWORD'),
+            'HOST': os.getenv('LOCAL_DB_HOST'),
+            'PORT': os.getenv('LOCAL_DB_PORT'),
+            'CONN_MAX_AGE': 0,
+            'OPTIONS': {
+                'sslmode': os.getenv('LOCAL_DB_SSLMODE', 'require'),
+            },
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'sslmode': os.getenv('DB_SSLMODE', 'require'),
+            },
+        }
+    }
 
-# The file storage engine to use when collecting static files with the collectstatic management command.
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# =============================================================================
+# PASSWORD VALIDATION
+# =============================================================================
 
-
-# Replace the DATABASES section of your settings.py with this
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-    'USER': os.getenv('DB_USER'),
-    'PASSWORD': os.getenv('DB_PASSWORD'),
-    'HOST': os.getenv('DB_HOST'),
-    'PORT': os.getenv('DB_PORT'),
-    'CONN_MAX_AGE': 0,  # Let Supabase pooler manage connections
-    'OPTIONS': {
-        'sslmode': os.getenv('DB_SSLMODE', 'require'),
-    },
-}
-} 
-
-
-
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -124,10 +148,25 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Internationalization
+# =============================================================================
+# INTERNATIONALIZATION
+# =============================================================================
+
 LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'Africa/Lagos'
+USE_I18N = True
 USE_TZ = True
-TIME_ZONE = "Africa/Lagos"
+
+# =============================================================================
+# STATIC AND MEDIA FILES
+# =============================================================================
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -135,10 +174,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# =============================================================================
+# DJANGO REST FRAMEWORK CONFIGURATION
+# =============================================================================
 
-# Django REST Framework Configuration
 REST_FRAMEWORK = {
-
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
@@ -146,10 +186,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
-
-
-
-
+# =============================================================================
+# CORS CONFIGURATION
+# =============================================================================
 
 # CORS Settings for React Frontend - Very permissive for development
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development!
@@ -166,11 +205,23 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# =============================================================================
+# AUTHENTICATION AND USER MODEL
+# =============================================================================
+
 AUTH_USER_MODEL = 'core.User'
+
+# =============================================================================
+# EMAIL CONFIGURATION
+# =============================================================================
+
 # Email Configuration - Console backend for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Simple logging for development
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -197,14 +248,18 @@ LOGGING = {
     },
 }
 
-# Admin Site Configuration for SecureCipher Banking
+# =============================================================================
+# ADMIN SITE CONFIGURATION
+# =============================================================================
+
 ADMIN_SITE_HEADER = 'SecureCipher Banking Administration'
 ADMIN_SITE_TITLE = 'SecureCipher Banking Admin'
 ADMIN_INDEX_TITLE = 'Welcome to SecureCipher Banking Administration'
 
+# =============================================================================
+# ENCRYPTION CONFIGURATION
+# =============================================================================
 
-
-from cryptography.fernet import Fernet
-#Fernet key must be 32 url-safe base64-encoded bytes.
+# Fernet key must be 32 url-safe base64-encoded bytes
 FIELD_KEY = os.getenv('SECRET_KEY').encode('utf-8')
 FIELD_ENCRYPTION_KEY = FIELD_KEY
