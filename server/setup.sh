@@ -4,39 +4,21 @@
 # Exit immediately on error
 set -e
 
-# Detect deployment platform
-if [ -n "$RENDER" ]; then
-    echo "� Running on Render - installing dependencies in global environment"
-    pip install --upgrade pip
-    pip install -r requirements.txt
-elif [ -n "$DIGITALOCEAN_APP_SPEC" ] || [ -n "$DIGITALOCEAN_APP_ID" ]; then
-    echo "🌊 Running on Digital Ocean App Platform - installing dependencies in global environment"
-    pip install --upgrade pip
-    pip install -r requirements.txt
+# Detect Render
+if [ -z "$RENDER" ]; then
+    echo "📍 Local development environment detected"
+    # …existing venv creation & activation…
 else
-    echo "� Local development environment detected"
-    # Create virtual environment if it doesn't exist
-    if [ ! -d "venv" ]; then
-        python -m venv venv
-    fi
-    # Activate virtual environment
-    source venv/bin/activate
+    echo "🚀 Running on Render - installing dependencies in global environment"
     pip install --upgrade pip
     pip install -r requirements.txt
 fi
 
-# Common setup steps for all environments
+# Common setup steps for both environments
 echo "📦 Running common setup steps..."
 
 python manage.py migrate
 python manage.py collectstatic --noinput
-
-# Create superuser only if it doesn't exist and we have the required environment variables
-if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
-    echo "👤 Creating superuser..."
-    python manage.py create_superuser --noinput || echo "Superuser may already exist"
-else
-    echo "⚠️  Superuser environment variables not set, skipping superuser creation"
-fi
+python manage.py create_superuser
 
 echo "✨ Setup completed successfully!"
