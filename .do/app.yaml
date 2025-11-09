@@ -1,0 +1,76 @@
+name: securecipher-middleware
+services:
+  - name: middleware
+    source_dir: middleware
+    github:
+      repo: King-Austin/securecipher_project
+      branch: master
+    run_command: gunicorn securecipher.wsgi:application --bind 0.0.0.0:$PORT
+    build_command: bash setup.sh
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        type: SECRET
+      - key: DATABASE_URL
+        type: SECRET
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: "admin"
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: "admin@securecipher.app"
+      - key: DJANGO_SUPERUSER_PASSWORD
+        type: SECRET
+
+  - name: banking-api
+    source_dir: server
+    github:
+      repo: King-Austin/securecipher_project
+      branch: master
+    run_command: gunicorn bankingapi.wsgi:application --bind 0.0.0.0:$PORT
+    build_command: bash setup.sh
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        type: SECRET
+      - key: FIELD_ENCRYPTION_KEY
+        type: SECRET
+      - key: DATABASE_URL
+        type: SECRET
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: "admin"
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: "admin@securecipher.app"
+      - key: DJANGO_SUPERUSER_PASSWORD
+        type: SECRET
+
+  - name: frontend
+    source_dir: frontend
+    github:
+      repo: King-Austin/securecipher_project
+      branch: master
+    build_command: npm ci && npm run build
+    static_site_generator: vite
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: VITE_API_URL
+        value: "${middleware.PUBLIC_URL}/api"
+      - key: VITE_APP_NAME
+        value: "SecureCipher Bank"
+      - key: NODE_ENV
+        value: "production"
+
+databases:
+  - name: securecipher-db
+    engine: PG
+    version: "15"
+    size: basic
+    num_nodes: 1
