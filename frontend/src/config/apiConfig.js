@@ -4,7 +4,7 @@
 // Base URL for middleware API - change this for different environments
 
 
-export const MIDDLEWARE_BASE_URL = 'https://middleware.securecipher.app'; // Production
+export const MIDDLEWARE_BASE_URL = 'https://goldfish-app-svr3x.ondigitalocean.app' //'https://middleware.securecipher.app'; // Production
 // export const MIDDLEWARE_BASE_URL = 'http://localhost:8000'; // For local development
 
 
