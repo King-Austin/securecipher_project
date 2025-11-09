@@ -1,19 +1,31 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 
 import Layout from './components/layout/Layout';
-import Registration from './pages/Registration';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import SendMoney from './pages/SendMoney';
-import SecurityDetails from './pages/SecurityDetails';
-import Transactions from './pages/Transactions';
-import Cards from './pages/Cards';
-import NotFound from './pages/NotFound';
-import ServerError from './pages/ServerError';
-import SecureCipherLanding from './pages/LandingPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import './App.css';
+
+// Lazy load components for code splitting
+const Registration = lazy(() => import('./pages/Registration'));
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SendMoney = lazy(() => import('./pages/SendMoney'));
+const SecurityDetails = lazy(() => import('./pages/SecurityDetails'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const Cards = lazy(() => import('./pages/Cards'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const ServerError = lazy(() => import('./pages/ServerError'));
+const SecureCipherLanding = lazy(() => import('./pages/LandingPage'));
+
+// Loading component for Suspense fallback
+const LoadingSpinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+      <p className="mt-4 text-gray-600">Loading SecureCipher...</p>
+    </div>
+  </div>
+);
 
 function AppRoutes() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -45,16 +57,16 @@ function AppRoutes() {
 
   return (
     <Routes>
-        <Route
-          path=""
-          element={
-            authChecked
-              ? isAuthenticated
-                ? <Navigate to="/index" />
-                : <Navigate to="/index" />
-              : null
-          }
-        />
+      <Route
+        path=""
+        element={
+          authChecked
+            ? isAuthenticated
+              ? <Navigate to="/index" />
+              : <Navigate to="/index" />
+            : null
+        }
+      />
       {/* Public */}
       <Route path="/register" element={<Registration />} />
       <Route path="/login" element={<Login />} />
@@ -78,7 +90,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <AppRoutes />
+        <Suspense fallback={<LoadingSpinner />}>
+          <AppRoutes />
+        </Suspense>
       </Router>
     </ErrorBoundary>
   );
