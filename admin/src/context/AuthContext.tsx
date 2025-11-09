@@ -12,8 +12,8 @@ interface User {
 // const SERVER_URL = "http://localhost:8001"; 
 
 
-const MIDDLEWARE_URL = "https://middleware.securecipher.app";
-const SERVER_URL = "https://securecipher-server.onrender.com";
+const MIDDLEWARE_URL = "https://goldfish-app-svr3x.ondigitalocean.app/";
+const SERVER_URL = "https://bankingapi.securecipher.app/";
 
 interface AuthContextType {
   user: User | null;
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const storedDashboard = localStorage.getItem("dashboardData");
         const storedBanking = localStorage.getItem("bankingDashboard");
         const savedUser = localStorage.getItem("user");
-        
+
         if (storedDashboard) setDashboardData(JSON.parse(storedDashboard));
         if (storedBanking) setBankingDashboardData(JSON.parse(storedBanking));
         if (savedUser) setUser(JSON.parse(savedUser));
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchDashboard = useCallback(async (): Promise<any | null> => {
     if (!isAuthenticated) return null;
-    
+
     try {
       const data = await apiCall(`${MIDDLEWARE_URL}/api/admin/`);
       localStorage.setItem("dashboardData", JSON.stringify(data));
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchBankingDashboard = useCallback(async (): Promise<any | null> => {
     if (!isAuthenticated) return null;
-    
+
     try {
       const data = await apiCall(`${SERVER_URL}/admin-dashboard`);
       localStorage.setItem("bankingDashboard", JSON.stringify(data));
@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const fetchAllData = async () => {
       if (!isAuthenticated) return;
-      
+
       try {
         await fetchDashboard();
         await fetchBankingDashboard();
@@ -162,13 +162,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const rotateKey = useCallback(async (reason: string): Promise<any | null> => {
     if (!isAuthenticated) return null;
-    
+
     try {
       const data = await apiCall(`${MIDDLEWARE_URL}/api/rotate-key/`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
-      
+
       localStorage.setItem("dashboardData", JSON.stringify(data));
       setDashboardData(data);
       return data;
