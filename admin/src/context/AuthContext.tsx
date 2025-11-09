@@ -12,7 +12,7 @@ interface User {
 // const SERVER_URL = "http://localhost:8001"; 
 
 
-const MIDDLEWARE_URL = "https://goldfish-app-svr3x.ondigitalocean.app/";
+const MIDDLEWARE_URL = "https:/goldfish-app-svr3x.ondigitalocean.app/";
 const SERVER_URL = "https://bankingapi.securecipher.app/";
 
 interface AuthContextType {
