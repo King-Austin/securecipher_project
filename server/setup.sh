@@ -1,24 +1,43 @@
 #!/usr/bin/env bash
-# Setup SecureCipher bankingapi with environment detection
+# Setup SecureCipher Banking API for build and deployment
 
 # Exit immediately on error
 set -e
 
-# Detect Render
-if [ -z "$RENDER" ]; then
-    echo "📍 Local development environment detected"
-    # …existing venv creation & activation…
-else
-    echo "🚀 Running on Render - installing dependencies in global environment"
-    pip install --upgrade pip
-    pip install -r requirements.txt
+echo "🏗️  Setting up SecureCipher Banking API..."
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python -m venv venv
 fi
 
-# Common setup steps for both environments
-echo "📦 Running common setup steps..."
+# Activate virtual environment
+echo "🔧 Activating virtual environment..."
+source venv/bin/activate
 
+# Install/update dependencies
+echo "📥 Installing dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Database setup
+echo "🗄️  Setting up database..."
+python manage.py makemigrations
 python manage.py migrate
+
+# Static files
+echo "📄 Collecting static files..."
 python manage.py collectstatic --noinput
-python manage.py create_superuser
+
+# Create superuser
+echo "👤 Creating superuser (admin/admin123)..."
+export DJANGO_SUPERUSER_USERNAME=admin
+export DJANGO_SUPERUSER_EMAIL=admin@securecipher.com
+export DJANGO_SUPERUSER_PASSWORD=admin123
+python manage.py createsuperuser --noinput || echo "Superuser may already exist"
 
 echo "✨ Setup completed successfully!"
+echo ""
+echo "🚀 To start the server, run:"
+echo "source venv/bin/activate && gunicorn bankingapi.wsgi:application --bind 0.0.0.0:8001"

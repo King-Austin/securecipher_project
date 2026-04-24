@@ -106,8 +106,8 @@ celerybeat.pid
 .venv
 env/
 venv/
-middleware/venv/
-server/venv/
+# middleware/venv/  # Keep venv for build process
+# server/venv/     # Keep venv for build process
 ENV/
 env.bak/
 venv.bak/

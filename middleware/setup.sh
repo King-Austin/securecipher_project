@@ -1,42 +1,43 @@
 #!/usr/bin/env bash
-# Setup SecureCipher middleware with environment detection
+# Setup SecureCipher middleware for build and deployment
 
 # Exit immediately on error
 set -e
 
-# Detect deployment platform
-if [ -n "$RENDER" ]; then
-    echo "� Running on Render - installing dependencies in global environment"
-    pip install --upgrade pip
-    pip install -r requirements.txt
-elif [ -n "$DIGITALOCEAN_APP_SPEC" ] || [ -n "$DIGITALOCEAN_APP_ID" ]; then
-    echo "🌊 Running on Digital Ocean App Platform - installing dependencies in global environment"
-    pip install --upgrade pip
-    pip install -r requirements.txt
-else
-    echo "� Local development environment detected"
-    # Create virtual environment if it doesn't exist
-    if [ ! -d "venv" ]; then
-        python -m venv venv
-    fi
-    # Activate virtual environment
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
+echo "🏗️  Setting up SecureCipher Middleware..."
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python -m venv venv
 fi
 
-# Common setup steps for all environments
-echo "📦 Running common setup steps..."
+# Activate virtual environment
+echo "🔧 Activating virtual environment..."
+source venv/bin/activate
 
+# Install/update dependencies
+echo "📥 Installing dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Database setup
+echo "🗄️  Setting up database..."
+python manage.py makemigrations
 python manage.py migrate
+
+# Static files
+echo "📄 Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Create superuser only if it doesn't exist and we have the required environment variables
-if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
-    echo "👤 Creating superuser..."
-    python manage.py create_superuser --noinput || echo "Superuser may already exist"
-else
-    echo "⚠️  Superuser environment variables not set, skipping superuser creation"
-fi
+# Create superuser
+echo "👤 Creating superuser (admin/admin123)..."
+export DJANGO_SUPERUSER_USERNAME=admin
+export DJANGO_SUPERUSER_EMAIL=admin@securecipher.com
+export DJANGO_SUPERUSER_PASSWORD=admin123
+python manage.py createsuperuser --noinput || echo "Superuser may already exist"
 
 echo "✨ Setup completed successfully!"
+echo ""
+echo "🚀 To start the server, run:"
+echo "source venv/bin/activate && gunicorn middleware.wsgi:application --bind 0.0.0.0:8000"
