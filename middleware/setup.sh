@@ -24,7 +24,10 @@ pip install -r requirements.txt
 # Database setup
 echo "🗄️  Setting up database..."
 python manage.py makemigrations
-python manage.py migrate
+python manage.py migrate --noinput
+python manage.py migrate auth --noinput
+python manage.py migrate contenttypes --noinput
+python manage.py migrate sessions --noinput
 
 # Static files
 echo "📄 Collecting static files..."
