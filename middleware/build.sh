@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Build and run SecureCipher Middleware
 
 # Exit on error
@@ -7,7 +7,7 @@ set -e
 echo "🚀 Building SecureCipher Middleware..."
 
 # Run setup
-./setup.sh
+bash setup.sh
 
 # Start gunicorn (use PORT from Railway or default to 8000)
 PORT=${PORT:-8000}

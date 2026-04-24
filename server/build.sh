@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Build and run SecureCipher Banking API
 
 # Exit on error
@@ -7,7 +7,7 @@ set -e
 echo "🚀 Building SecureCipher Banking API..."
 
 # Run setup
-./setup.sh
+bash setup.sh
 
 # Start gunicorn (use PORT from Railway or default to 8001)
 PORT=${PORT:-8001}
