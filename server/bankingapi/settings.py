@@ -9,7 +9,10 @@ Organized for readability and maintainability.
 
 import os
 from pathlib import Path
-from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+
+# Import metrics middleware
+from core.metrics_middleware import MetricsMiddleware
 
 # =============================================================================
 # BASIC SETUP
@@ -19,7 +22,6 @@ from cryptography.fernet import Fernet
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-from dotenv import load_dotenv
 load_dotenv()
 
 # =============================================================================
@@ -66,6 +68,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'core.metrics_middleware.MetricsMiddleware',  # Add metrics middleware
 ]
 
 # =============================================================================
@@ -98,30 +101,14 @@ WSGI_APPLICATION = 'bankingapi.wsgi.application'
 
 LOCAL_DEV = os.getenv('LOCAL_DEV', 'False').lower() in ('true', '1', 'yes')
 
-if LOCAL_DEV:
-    DATABASES = {
+DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('LOCAL_DB_NAME'),
-            'USER': os.getenv('LOCAL_DB_USER'),
-            'PASSWORD': os.getenv('LOCAL_DB_PASSWORD'),
-            'HOST': os.getenv('LOCAL_DB_HOST'),
-            'PORT': os.getenv('LOCAL_DB_PORT'),
-            'CONN_MAX_AGE': 0,
-            'OPTIONS': {
-                'sslmode': os.getenv('LOCAL_DB_SSLMODE', 'require'),
-            },
-        }
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
+            'NAME': os.getenv('DB_NAME', 'railway'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'fRLWsbYdIujGBRVCdRaaMeOmCUpJvTZO'),
+            'HOST': os.getenv('DB_HOST', 'shortline.proxy.rlwy.net'),
+            'PORT': os.getenv('DB_PORT', '29524'),
             'CONN_MAX_AGE': 600,
             'OPTIONS': {
                 'sslmode': os.getenv('DB_SSLMODE', 'require'),

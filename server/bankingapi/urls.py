@@ -17,13 +17,12 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from core.metrics import metrics
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),  # Consolidated API entry point
-
-    # JWT Authentication Endpoints
-
+    path('metrics/', metrics, name='prometheus-metrics'),  # Prometheus metrics endpoint
 ]
 
 

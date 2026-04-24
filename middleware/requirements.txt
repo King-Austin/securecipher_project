@@ -24,6 +24,9 @@ coverage>=7.0.0               # Code coverage analysis
 django-extensions>=3.2.0     # Additional Django management commands
 python-dateutil==2.8.2       # Date/time utilities for timestamp validation
 
+# Monitoring
+prometheus-client==0.20.0  # Prometheus metrics collection
+
 dj-database-url
 
 # Database

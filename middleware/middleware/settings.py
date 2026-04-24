@@ -11,6 +11,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Import metrics middleware
+from modules.metrics_middleware import MetricsMiddleware
+
 # =============================================================================
 # BASIC SETUP
 # =============================================================================
@@ -69,6 +72,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'modules.metrics_middleware.MetricsMiddleware',  # Add metrics middleware
 ]
 
 # =============================================================================
@@ -101,30 +105,14 @@ WSGI_APPLICATION = 'middleware.wsgi.application'
 
 BANKING_API_BASE_URL = os.getenv('BANKING_API_BASE_URL')
 
-if LOCAL_DEV:
-    DATABASES = {
+DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('LOCAL_DB_NAME'),
-            'USER': os.getenv('LOCAL_DB_USER'),
-            'PASSWORD': os.getenv('LOCAL_DB_PASSWORD'),
-            'HOST': os.getenv('LOCAL_DB_HOST'),
-            'PORT': os.getenv('LOCAL_DB_PORT'),
-            'CONN_MAX_AGE': 0,
-            'OPTIONS': {
-                'sslmode': os.getenv('LOCAL_DB_SSLMODE', 'require'),
-            },
-        }
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
+            'NAME': os.getenv('DB_NAME', 'railway'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'fRLWsbYdIujGBRVCdRaaMeOmCUpJvTZO'),
+            'HOST': os.getenv('DB_HOST', 'shortline.proxy.rlwy.net'),
+            'PORT': os.getenv('DB_PORT', '29524'),
             'CONN_MAX_AGE': 600,
             'OPTIONS': {
                 'sslmode': os.getenv('DB_SSLMODE', 'require'),
@@ -133,7 +121,7 @@ else:
     }
 
 if not BANKING_API_BASE_URL:
-    BANKING_API_BASE_URL = 'http://server:8001' if LOCAL_DEV else 'https://bankingapi.securecipher.app'
+    BANKING_API_BASE_URL = 'http://localhost:8001'
 
 # =============================================================================
 # PASSWORD VALIDATION
@@ -281,6 +269,7 @@ ROUTING_TABLE = {
     'transfer': f'{BANKING_API_BASE_URL}/transfer/',
     'public_key': f'{BANKING_API_BASE_URL}/public-key/',
     'refresh': f'{BANKING_API_BASE_URL}/refresh/',
+#    'metrics': f'{PROMETHEUS_URL}',
 }
 
 # =============================================================================
