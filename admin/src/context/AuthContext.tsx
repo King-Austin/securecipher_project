@@ -12,7 +12,7 @@ interface User {
 // const SERVER_URL = "http://localhost:8001";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://bankingapi.securecipher.app";
-const MIDDLEWARE_URL = import.meta.env.VITE_MIDDLEWARE_URL || "https://goldfish-app-svr3x.ondigitalocean.app";
+const MIDDLEWARE_URL = import.meta.env.VITE_MIDDLEWARE_URL || "https://middleware.securecipher.app";
 
 
 interface AuthContextType {

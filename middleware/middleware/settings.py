@@ -121,7 +121,7 @@ DATABASES = {
     }
 
 if not BANKING_API_BASE_URL:
-    BANKING_API_BASE_URL = 'http://localhost:8001'
+    BANKING_API_BASE_URL = 'https://bankingapi.securecipher.app'  # use production server endpoint by default
 
 # =============================================================================
 # PASSWORD VALIDATION
