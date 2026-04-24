@@ -96,7 +96,7 @@ WSGI_APPLICATION = 'bankingapi.wsgi.application'
 # DATABASE CONFIGURATION
 # =============================================================================
 
-LOCAL_DEV = False
+LOCAL_DEV = os.getenv('LOCAL_DEV', 'False').lower() in ('true', '1', 'yes')
 
 if LOCAL_DEV:
     DATABASES = {

@@ -32,8 +32,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', '')
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 # Environment flags
-LOCAL_DEV = False
-TEST_MODE = False  # Default: production mode
+LOCAL_DEV = os.getenv('LOCAL_DEV', 'False').lower() in ('true', '1', 'yes')
+TEST_MODE = os.getenv('TEST_MODE', 'False').lower() in ('true', '1', 'yes')
 
 # Host configuration
 ALLOWED_HOSTS = ["*"]
@@ -99,6 +99,8 @@ WSGI_APPLICATION = 'middleware.wsgi.application'
 # DATABASE CONFIGURATION
 # =============================================================================
 
+BANKING_API_BASE_URL = os.getenv('BANKING_API_BASE_URL')
+
 if LOCAL_DEV:
     DATABASES = {
         'default': {
@@ -114,7 +116,6 @@ if LOCAL_DEV:
             },
         }
     }
-    BANKING_API_BASE_URL = 'http://localhost:8001'  # Development URL
 else:
     DATABASES = {
         'default': {
@@ -130,7 +131,9 @@ else:
             },
         }
     }
-    BANKING_API_BASE_URL = 'https://bankingapi.securecipher.app'  # Production URL
+
+if not BANKING_API_BASE_URL:
+    BANKING_API_BASE_URL = 'http://server:8001' if LOCAL_DEV else 'https://bankingapi.securecipher.app'
 
 # =============================================================================
 # PASSWORD VALIDATION
