@@ -31,12 +31,10 @@ echo "📄 Collecting static files..."
 mkdir -p staticfiles
 python manage.py collectstatic --noinput
 
-# Create superuser
-echo "👤 Creating superuser (admin/admin123)..."
-export DJANGO_SUPERUSER_USERNAME=admin
-export DJANGO_SUPERUSER_EMAIL=admin@securecipher.com
-export DJANGO_SUPERUSER_PASSWORD=admin123
-python manage.py createsuperuser --noinput || echo "Superuser may already exist"
+# Create superuser using the custom management command
+# Requires DEFAULT_SUPERUSER_USERNAME, DEFAULT_SUPERUSER_PASSWORD, DEFAULT_SUPERUSER_EMAIL env vars
+echo "👤 Creating default superuser..."
+python manage.py create_superuser || echo "Superuser may already exist or creation failed"
 
 echo "✨ Setup completed successfully!"
 echo ""

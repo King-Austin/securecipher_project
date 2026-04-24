@@ -22,6 +22,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 
 from cryptography.exceptions import  InvalidTag
 
@@ -134,28 +135,38 @@ class AdminLogin(APIView):
     Validate user credentials using Django's built-in authentication.
     """
 
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self, request):
-        serializer = AdminLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer = AdminLoginSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        username = serializer.validated_data["username"]
-        # Don't log raw password
-        logger.info("Admin login attempt for user=%s", username)
+            username = serializer.validated_data["username"]
+            # Don't log raw password
+            logger.info("Admin login attempt for user=%s", username)
 
-        user = authenticate(username=username, password=serializer.validated_data["password"])
+            user = authenticate(username=username, password=serializer.validated_data["password"])
 
-        if user is not None:
-            logger.info("Admin login success for user_id=%s", user.id)
+            if user is not None:
+                logger.info("Admin login success for user_id=%s", user.id)
+                return Response(
+                    {
+                        "authenticated": True,
+                        "user": {"id": user.id, "username": user.username, "email": user.email},
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            logger.warning("Admin login failed for user=%s", username)
+            return Response({"authenticated": False}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as exc:
+            logger.exception("Admin login error")
             return Response(
-                {
-                    "authenticated": True,
-                    "user": {"id": user.id, "username": user.username, "email": user.email},
-                },
-                status=status.HTTP_200_OK,
+                {"detail": "Internal server error. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-        logger.warning("Admin login failed for user=%s", username)
-        return Response({"authenticated": False}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 def index_view(request):
