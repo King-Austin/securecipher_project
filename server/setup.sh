@@ -28,6 +28,7 @@ python manage.py migrate
 
 # Static files
 echo "📄 Collecting static files..."
+mkdir -p staticfiles
 python manage.py collectstatic --noinput
 
 # Create superuser
