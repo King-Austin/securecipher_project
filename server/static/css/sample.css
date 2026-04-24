@@ -1,0 +1,10 @@
+/* Server sample static CSS */
+body {
+    background-color: #ffffff;
+    color: #111827;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+h1 {
+    color: #0f766e;
+}
